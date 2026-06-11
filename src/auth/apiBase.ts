@@ -23,8 +23,8 @@ export function isBrowserOAuthLogin(): boolean {
   return true;
 }
 
-export function getViewerUrl(config: ControllerConfig = getConfig()): string {
-  const viewer = (config.viewerUrl || config.publicUrl || "").trim();
+export function getconsoleUrl(config: ControllerConfig = getConfig()): string {
+  const viewer = (config.consoleUrl || config.publicUrl || "").trim();
   if (!viewer) {
     return window.location.origin;
   }

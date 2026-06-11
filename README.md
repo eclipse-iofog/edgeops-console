@@ -97,7 +97,7 @@ Example dev config (`config/controller-config.dev.js`):
 window.controllerConfig = {
   apiPort: 51121,
   publicUrl: 'http://localhost:51121',
-  viewerUrl: 'http://localhost:3000',
+  consoleUrl: 'http://localhost:3000',
   auth: {
     mode: 'embedded',
     loginUrl: '/api/v3/user/login',

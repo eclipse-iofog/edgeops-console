@@ -5,7 +5,7 @@ export {
   getApiV3Base,
   getWsBase,
   getAuthMode,
-  getViewerUrl,
+  getconsoleUrl,
   isEmbeddedAuthMode,
   isBrowserOAuthLogin,
 } from "./apiBase";

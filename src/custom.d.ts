@@ -46,7 +46,7 @@ interface ControllerAuthConfig {
 interface ControllerConfig {
   apiPort?: number;
   publicUrl: string;
-  viewerUrl?: string;
+  consoleUrl?: string;
   auth: ControllerAuthConfig;
   controlPlane?: string;
 }

@@ -1,7 +1,7 @@
 window.controllerConfig = {
   apiPort: 51121,
   publicUrl: 'https://<host>:51121',
-  viewerUrl: 'https://<host>:51121',
+  consoleUrl: 'https://<host>:51121',
   auth: {
     mode: 'embedded',
     loginUrl: '/api/v3/user/login',
