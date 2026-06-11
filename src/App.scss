@@ -1,0 +1,37 @@
+.pulse {
+  box-shadow: 0 0 0 0 rgba(var(--color, 0, 0, 0), 1);
+  transform: scale(1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--color, 0, 0, 0), 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 var(--pulse-size, 10px) rgba(var(--color, 0, 0, 0), 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--color, 0, 0, 0), 0);
+  }
+}
+
+.MuiTableCell-body {
+  border: none !important;
+}
+
+.MuiPaper-elevation1 {
+  backdrop-filter: blur(20px);
+  box-shadow: 0px 2px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+.Mui-focused {
+  fieldset {
+    border-color: #00293e !important;
+  }
+}

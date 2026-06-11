@@ -1,0 +1,59 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags: [v*]
+    paths-ignore:
+      - README.md
+      - CHANGELOG.md
+      - LICENSE
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - CHANGELOG.md
+      - LICENSE
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    name: Build and test EdgeOps Console
+    env:
+      VITE_DISTRIBUTION: ${{ vars.VITE_DISTRIBUTION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Resolve distribution
+        id: distro
+        run: |
+          DISTRIBUTION="$(sh scripts/resolve-distribution.sh | tr -d '[:space:]')"
+          case "${DISTRIBUTION}" in
+            datasance|iofog) ;;
+            *)
+              echo "Invalid distribution: ${DISTRIBUTION} (expected datasance or iofog)" >&2
+              exit 1
+              ;;
+          esac
+          echo "value=${DISTRIBUTION}" >> "$GITHUB_OUTPUT"
+          echo "Building flavor: ${DISTRIBUTION}"
+
+      - run: npm ci --legacy-peer-deps
+      - run: npm run lint
+      - run: npx better-npm-audit audit -p
+      - run: npm test
+        env:
+          VITE_DISTRIBUTION: ${{ steps.distro.outputs.value }}
+      - run: sh package.sh
+        env:
+          CI: true
+          VITE_DISTRIBUTION: ${{ steps.distro.outputs.value }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edgeops-console-${{ steps.distro.outputs.value }}
+          path: edgeops-console_*.tar.gz

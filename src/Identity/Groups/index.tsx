@@ -1,0 +1,487 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import CustomDataTable from "@/components/ui/CustomDataTable";
+import CustomActionModal from "@/components/ui/CustomActionModal";
+import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
+import SlideOver from "@/components/ui/SlideOver";
+import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
+import { ControllerContext } from "@/app/providers";
+import { FeedbackContext } from "@/app/providers";
+import { parseIdentityGroup, parseIdentityGroupList } from "./parseApi";
+import type { GroupFormDraft, IdentityGroup } from "./types";
+
+const emptyDraft = (): GroupFormDraft => ({
+  name: "",
+  description: "",
+});
+
+function groupApiPath(name: string): string {
+  return `/api/v3/groups/${encodeURIComponent(name)}`;
+}
+
+function IdentityGroupsList() {
+  const { request } = React.useContext(ControllerContext);
+  const { pushFeedback } = React.useContext(FeedbackContext);
+  const location = useLocation();
+
+  const [fetching, setFetching] = useState(true);
+  const [groups, setGroups] = useState<IdentityGroup[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<IdentityGroup | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [draft, setDraft] = useState<GroupFormDraft>(emptyDraft);
+  const [saving, setSaving] = useState(false);
+
+  const params = new URLSearchParams(location.search);
+  const groupNameParam =
+    params.get("groupName") ?? params.get("groupId");
+
+  const fetchGroups = useCallback(async () => {
+    try {
+      setFetching(true);
+      const response = await request("/api/v3/groups");
+      if (!response?.ok) {
+        pushFeedback({
+          message: response?.message || "Failed to load groups",
+          type: "error",
+        });
+        setFetching(false);
+        return;
+      }
+      const payload = await response.json();
+      setGroups(parseIdentityGroupList(payload));
+      setFetching(false);
+    } catch (e: unknown) {
+      pushFeedback({
+        message: e instanceof Error ? e.message : "Failed to load groups",
+        type: "error",
+      });
+      setFetching(false);
+    }
+  }, [pushFeedback, request]);
+
+  const fetchGroupItem = useCallback(
+    async (groupName: string) => {
+      try {
+        setFetching(true);
+        const response = await request(groupApiPath(groupName));
+        if (!response?.ok) {
+          pushFeedback({
+            message: response?.message || "Failed to load group",
+            type: "error",
+          });
+          setFetching(false);
+          return;
+        }
+        const payload = await response.json();
+        const group = parseIdentityGroup(payload);
+        if (!group) {
+          pushFeedback({ message: "Unexpected group response", type: "error" });
+          setFetching(false);
+          return;
+        }
+        setSelectedGroup(group);
+        setIsOpen(true);
+        setFetching(false);
+      } catch (e: unknown) {
+        pushFeedback({
+          message: e instanceof Error ? e.message : "Failed to load group",
+          type: "error",
+        });
+        setFetching(false);
+      }
+    },
+    [pushFeedback, request],
+  );
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
+
+  useEffect(() => {
+    if (groupNameParam && groups.length > 0) {
+      const found = groups.find((group) => group.name === groupNameParam);
+      if (found) {
+        fetchGroupItem(found.name);
+      }
+    }
+  }, [fetchGroupItem, groupNameParam, groups]);
+
+  const handleRowClick = (row: IdentityGroup) => {
+    fetchGroupItem(row.name);
+  };
+
+  const handleRefreshGroup = async () => {
+    if (!selectedGroup?.name) {
+      return;
+    }
+    try {
+      const response = await request(groupApiPath(selectedGroup.name));
+      if (response?.ok) {
+        const payload = await response.json();
+        const group = parseIdentityGroup(payload);
+        if (group) {
+          setSelectedGroup(group);
+        }
+      }
+    } catch (e) {
+      console.error("Error refreshing group:", e);
+    }
+  };
+
+  const openCreateModal = () => {
+    setDraft(emptyDraft());
+    setShowCreateModal(true);
+  };
+
+  const openEditModal = () => {
+    if (!selectedGroup || selectedGroup.isSystem) {
+      return;
+    }
+    setDraft({
+      name: selectedGroup.name,
+      description: selectedGroup.description ?? "",
+    });
+    setShowEditModal(true);
+  };
+
+  const buildGroupBody = (form: GroupFormDraft) => {
+    const body: Record<string, string> = {
+      name: form.name.trim(),
+    };
+    const description = form.description.trim();
+    if (description) {
+      body.description = description;
+    }
+    return body;
+  };
+
+  const handleCreateGroup = async () => {
+    if (!draft.name.trim()) {
+      pushFeedback({ message: "Name is required", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await request("/api/v3/groups", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildGroupBody(draft)),
+      });
+
+      if (!response?.ok) {
+        pushFeedback({
+          message: response?.message || "Failed to create group",
+          type: "error",
+        });
+        return;
+      }
+
+      pushFeedback({
+        message: `Group ${draft.name.trim()} created`,
+        type: "success",
+      });
+      setShowCreateModal(false);
+      setDraft(emptyDraft());
+      await fetchGroups();
+    } catch (e: unknown) {
+      pushFeedback({
+        message: e instanceof Error ? e.message : "Failed to create group",
+        type: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!selectedGroup) {
+      return;
+    }
+    if (selectedGroup.isSystem) {
+      pushFeedback({
+        message: "System groups cannot be modified",
+        type: "error",
+      });
+      return;
+    }
+    if (!draft.name.trim()) {
+      pushFeedback({ message: "Name is required", type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await request(groupApiPath(selectedGroup.name), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildGroupBody(draft)),
+      });
+
+      if (!response?.ok) {
+        pushFeedback({
+          message: response?.message || "Failed to update group",
+          type: "error",
+        });
+        return;
+      }
+
+      pushFeedback({
+        message: `Group ${draft.name.trim()} updated`,
+        type: "success",
+      });
+      setShowEditModal(false);
+      setIsOpen(false);
+      await fetchGroups();
+    } catch (e: unknown) {
+      pushFeedback({
+        message: e instanceof Error ? e.message : "Failed to update group",
+        type: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!selectedGroup) {
+      return;
+    }
+    if (selectedGroup.isSystem) {
+      pushFeedback({
+        message: "System groups cannot be deleted",
+        type: "error",
+      });
+      return;
+    }
+
+    try {
+      const response = await request(groupApiPath(selectedGroup.name), {
+        method: "DELETE",
+      });
+
+      if (!response?.ok) {
+        pushFeedback({
+          message: response?.message || "Failed to delete group",
+          type: "error",
+        });
+        return;
+      }
+
+      pushFeedback({
+        message: `Group ${selectedGroup.name} deleted`,
+        type: "success",
+      });
+      setShowDeleteModal(false);
+      setIsOpen(false);
+      setSelectedGroup(null);
+      await fetchGroups();
+    } catch (e: unknown) {
+      pushFeedback({
+        message: e instanceof Error ? e.message : "Failed to delete group",
+        type: "error",
+      });
+    }
+  };
+
+  const groupFormFields = (
+    <>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Name
+      </label>
+      <input
+        type="text"
+        value={draft.name}
+        onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+        className="w-full border rounded px-2 py-1 text-sm mb-3"
+        placeholder="group-name"
+        autoComplete="off"
+      />
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Description
+      </label>
+      <textarea
+        value={draft.description}
+        onChange={(e) =>
+          setDraft((prev) => ({ ...prev, description: e.target.value }))
+        }
+        className="w-full border rounded px-2 py-1 text-sm mb-3 min-h-[80px]"
+        placeholder="Optional description"
+      />
+    </>
+  );
+
+  const columns = [
+    {
+      key: "name",
+      header: "Name",
+      render: (row: IdentityGroup) => (
+        <button
+          type="button"
+          className="cursor-pointer text-blue-400 hover:underline text-left"
+          onClick={() => handleRowClick(row)}
+        >
+          {row.name}
+        </button>
+      ),
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (row: IdentityGroup) => row.description || "—",
+    },
+    {
+      key: "isSystem",
+      header: "System",
+      render: (row: IdentityGroup) =>
+        row.isSystem ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-200 border border-amber-700/50">
+            Yes
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+  ];
+
+  const slideOverFields = [
+    {
+      label: "Name",
+      render: (group: IdentityGroup) => group.name,
+    },
+    {
+      label: "Group ID",
+      render: (group: IdentityGroup) => (
+        <span className="font-mono text-xs break-all">{group.id}</span>
+      ),
+    },
+    {
+      label: "Description",
+      render: (group: IdentityGroup) => group.description || "—",
+    },
+    {
+      label: "System group",
+      render: (group: IdentityGroup) => (group.isSystem ? "Yes" : "No"),
+    },
+    {
+      label: "Actions",
+      isFullSection: true,
+      render: (group: IdentityGroup) =>
+        group.isSystem ? (
+          <span className="text-sm text-gray-400">
+            System groups are read-only and cannot be edited or deleted.
+          </span>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={openEditModal}
+              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm"
+            >
+              Edit group
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="px-3 py-1.5 rounded bg-red-700 hover:bg-red-800 text-white text-sm"
+            >
+              Delete group
+            </button>
+          </div>
+        ),
+    },
+  ];
+
+  return (
+    <>
+      {fetching ? (
+        <CustomLoadingModal
+          open
+          message="Loading groups"
+          spinnerSize="lg"
+          spinnerColor="text-green-500"
+          overlayOpacity={60}
+        />
+      ) : null}
+
+      <div className="bg-gray-900 text-white overflow-auto p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-gray-700 pb-2">
+          <h1 className="text-2xl font-bold text-white">Identity Groups</h1>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm"
+              onClick={fetchGroups}
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              className="px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
+              onClick={openCreateModal}
+            >
+              Create group
+            </button>
+          </div>
+        </div>
+
+        <CustomDataTable
+          columns={columns}
+          data={groups}
+          getRowKey={(row) => row.id}
+        />
+
+        <SlideOver
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          title={selectedGroup?.name || "Group details"}
+          data={selectedGroup}
+          fields={slideOverFields}
+          customWidth={560}
+          enablePolling
+          onRefresh={handleRefreshGroup}
+          onDelete={
+            selectedGroup && !selectedGroup.isSystem
+              ? () => setShowDeleteModal(true)
+              : undefined
+          }
+        />
+
+        <CustomActionModal
+          open={showCreateModal}
+          title="Create group"
+          onCancel={() => setShowCreateModal(false)}
+          onConfirm={handleCreateGroup}
+          confirmLabel={saving ? "Creating…" : "Create"}
+          confirmColor="green"
+          child={groupFormFields}
+        />
+
+        <CustomActionModal
+          open={showEditModal}
+          title={`Edit group${selectedGroup ? `: ${selectedGroup.name}` : ""}`}
+          onCancel={() => setShowEditModal(false)}
+          onConfirm={handleUpdateGroup}
+          confirmLabel={saving ? "Saving…" : "Save"}
+          confirmColor="blue"
+          child={groupFormFields}
+        />
+
+        <UnsavedChangesModal
+          open={showDeleteModal}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteGroup}
+          title={`Delete group ${selectedGroup?.name ?? ""}`}
+          message="This will permanently remove the group. Users assigned to this group may lose access. This action cannot be undone."
+          cancelLabel="Cancel"
+          confirmLabel="Delete"
+        />
+      </div>
+    </>
+  );
+}
+
+export default IdentityGroupsList;
