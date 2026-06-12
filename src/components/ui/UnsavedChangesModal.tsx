@@ -10,6 +10,7 @@ type UnsavedChangesModalProps = {
   cancelLabel?: string;
   confirmLabel?: string;
   confirmColor?: string;
+  warning?: string;
 };
 
 const UnsavedChangesModal = ({
@@ -21,6 +22,7 @@ const UnsavedChangesModal = ({
   cancelLabel = "Cancel",
   confirmLabel = "Close Anyway",
   confirmColor,
+  warning,
 }: UnsavedChangesModalProps) => {
   return (
     <Transition show={open} as={Fragment}>
@@ -42,6 +44,9 @@ const UnsavedChangesModal = ({
             <Dialog.Title className="text-lg font-semibold">
               {title}
             </Dialog.Title>
+            {warning ? (
+              <p className="mt-2 text-sm font-bold text-red-700">{warning}</p>
+            ) : null}
             <div className="mt-2 text-sm text-gray-700 whitespace-pre-line">
               {message}
             </div>

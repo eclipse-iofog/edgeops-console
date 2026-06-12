@@ -10,6 +10,7 @@ import {
   Upload as PublishOutlined,
   FileText as DescriptionOutlined,
   Key as VpnKeyIcon,
+  ArrowUpDown as VersionChangeIcon,
 } from "lucide-react";
 import { usePollingConfig } from "@/app/providers";
 
@@ -40,6 +41,7 @@ type SlideOverProps<T> = {
   onAttach?: () => void;
   onDetach?: () => void;
   onProvisionKey?: () => void;
+  onVersionChange?: () => void;
   enablePolling?: boolean;
   onRefresh?: () => void | Promise<void>;
 };
@@ -63,6 +65,7 @@ const SlideOver = <T,>({
   onAttach,
   onDetach,
   onProvisionKey,
+  onVersionChange,
   customWidth,
   enablePolling = false,
   onRefresh,
@@ -335,6 +338,15 @@ const SlideOver = <T,>({
                           title="Edit"
                         >
                           <EditOutlinedIcon size={20} />
+                        </button>
+                      )}
+                      {onVersionChange && (
+                        <button
+                          onClick={onVersionChange}
+                          className="hover:text-white hover:bg-sky-500 rounded"
+                          title="Version change"
+                        >
+                          <VersionChangeIcon size={20} />
                         </button>
                       )}
                       {onStartStop &&
