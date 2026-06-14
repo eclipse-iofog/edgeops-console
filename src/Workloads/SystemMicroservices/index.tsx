@@ -728,12 +728,20 @@ function SystemMicroserviceList() {
       isSectionHeader: true,
     },
     {
-      label: "X86 Image",
+      label: "AMD64 Image",
       render: (row: any) => row.images?.[0]?.containerImage || "N/A",
     },
     {
-      label: "ARM Image",
+      label: "ARM64 Image",
       render: (row: any) => row.images?.[1]?.containerImage || "N/A",
+    },
+    {
+      label: "RISCV64 Image",
+      render: (row: any) => row.images?.[2]?.containerImage || "N/A",
+    },
+    {
+      label: "ARM Image",
+      render: (row: any) => row.images?.[3]?.containerImage || "N/A",
     },
     {
       label: "Registry",
