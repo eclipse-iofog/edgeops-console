@@ -31,7 +31,7 @@
     "downshift": "9.0.6",
     "google-map-react": "1.1.6",
     "immutable": "^3.8.3",
-    "js-yaml": "4.1.1",
+    "js-yaml": "4.2.0",
     "jwt-decode": "^4.0.0",
     "leaflet": "^1.9.3",
     "lodash": "^4.18.0",
@@ -77,6 +77,11 @@
     "caniuse-lite": "1.0.30000984"
   },
   "overrides": {
+    "esbuild": "0.28.1",
+    "axios": {
+      ".": "^1.18.0",
+      "form-data": "4.0.6"
+    },
     "brace-expansion": "5.0.6",
     "fast-uri": "3.1.2",
     "shell-quote": "^1.8.4",
@@ -84,7 +89,6 @@
     "nth-check": "2.1.1",
     "qs": "^6.15.2",
     "underscore": "^1.13.8",
-    "axios": "^1.17.0",
     "follow-redirects": "1.16.0",
     "prismjs": "^1.30.0",
     "sass": {
@@ -96,7 +100,8 @@
       "picomatch": "2.3.2"
     },
     "swagger-ui-react": {
-      "dompurify": "^3.4.0"
+      "dompurify": "^3.4.0",
+      "js-yaml": "4.2.0"
     },
     "anymatch": {
       "picomatch": "2.3.2"
@@ -107,7 +112,6 @@
     "@rollup/pluginutils": {
       "picomatch": "2.3.2"
     },
-    "js-yaml": "4.1.1",
     "picomatch": "2.3.2",
     "cosmiconfig": {
       "yaml": "1.10.3"
@@ -157,7 +161,7 @@
     "standard": "^17.1.0",
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
+    "vite": "^7.3.5",
     "vitest": "^3.2.4"
   }
 }

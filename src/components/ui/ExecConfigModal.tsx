@@ -38,7 +38,7 @@ const ExecConfigModal: React.FC<ExecConfigModalProps> = ({
 
     if (action === "enable" && image.trim() && !image.includes("/")) {
       newErrors.image =
-        "Image must be in format: registry/image:tag (e.g., ghcr.io/datasance/node-debugger:latest)";
+        "Image must be in format: registry/image:tag (e.g., ghcr.io/datasance/debugger:latest)";
     }
 
     setErrors(newErrors);
@@ -142,7 +142,7 @@ const ExecConfigModal: React.FC<ExecConfigModalProps> = ({
                       type="text"
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
-                      placeholder="e.g., ghcr.io/datasance/node-debugger:latest"
+                      placeholder="e.g., ghcr.io/datasance/debugger:latest"
                       className={`w-full px-3 py-2 border rounded ${
                         errors.image ? "border-red-500" : "border-gray-300"
                       }`}
