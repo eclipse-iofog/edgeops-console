@@ -29,6 +29,11 @@ export function consumePostLoginRedirect(): string | null {
   return target;
 }
 
+/** Drop any captured deep link so the next login does not inherit it. */
+export function clearPostLoginRedirect(): void {
+  pendingPostLoginRedirect = null;
+}
+
 export function requiresPasswordChange(profile: AuthProfile): boolean {
   return profile.mustChangePassword === true;
 }

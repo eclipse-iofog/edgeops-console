@@ -7,22 +7,68 @@ import SlideOver from "@/components/ui/SlideOver";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
 import { ControllerContext } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
+import { useAuth } from "@/auth";
+import { canEditAuthGroups } from "@/lib/canEditAuthGroups";
 import { parseIdentityGroup, parseIdentityGroupList } from "./parseApi";
 import type { GroupFormDraft, IdentityGroup } from "./types";
 
 const emptyDraft = (): GroupFormDraft => ({
   name: "",
-  description: "",
+  mfaRequired: false,
 });
 
 function groupApiPath(name: string): string {
   return `/api/v3/groups/${encodeURIComponent(name)}`;
 }
 
+function MfaRequiredBadge({ value }: { value?: boolean }) {
+  return value ? (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-900/50 text-blue-200 border border-blue-700/50">
+      Required
+    </span>
+  ) : (
+    <span className="text-gray-400">—</span>
+  );
+}
+
+function MfaRequiredToggle({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2 cursor-pointer mb-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="block text-sm font-medium text-gray-700">
+          Require MFA at login
+        </span>
+        <span className="block text-xs text-gray-500 mt-0.5">
+          When enabled, users in this group must enroll TOTP and enter a code
+          each sign-in. Bootstrap admin is exempt.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 function IdentityGroupsList() {
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
+  const { user } = useAuth();
   const location = useLocation();
+
+  const canEdit = canEditAuthGroups(user?.profile?.groups);
 
   const [fetching, setFetching] = useState(true);
   const [groups, setGroups] = useState<IdentityGroup[]>([]);
@@ -32,6 +78,7 @@ function IdentityGroupsList() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [draft, setDraft] = useState<GroupFormDraft>(emptyDraft);
+  const [systemMfaRequired, setSystemMfaRequired] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const params = new URLSearchParams(location.search);
@@ -83,6 +130,7 @@ function IdentityGroupsList() {
           return;
         }
         setSelectedGroup(group);
+        setSystemMfaRequired(group.mfaRequired === true);
         setIsOpen(true);
         setFetching(false);
       } catch (e: unknown) {
@@ -124,6 +172,7 @@ function IdentityGroupsList() {
         const group = parseIdentityGroup(payload);
         if (group) {
           setSelectedGroup(group);
+          setSystemMfaRequired(group.mfaRequired === true);
         }
       }
     } catch (e) {
@@ -142,20 +191,16 @@ function IdentityGroupsList() {
     }
     setDraft({
       name: selectedGroup.name,
-      description: selectedGroup.description ?? "",
+      mfaRequired: selectedGroup.mfaRequired === true,
     });
     setShowEditModal(true);
   };
 
-  const buildGroupBody = (form: GroupFormDraft) => {
-    const body: Record<string, string> = {
-      name: form.name.trim(),
-    };
-    const description = form.description.trim();
-    if (description) {
-      body.description = description;
+  const patchPermissionMessage = (response: { status?: number; message?: string }) => {
+    if (response?.status === 403) {
+      return "Insufficient permission to change group settings";
     }
-    return body;
+    return response?.message || "Failed to update group";
   };
 
   const handleCreateGroup = async () => {
@@ -169,12 +214,15 @@ function IdentityGroupsList() {
       const response = await request("/api/v3/groups", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildGroupBody(draft)),
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          mfaRequired: draft.mfaRequired,
+        }),
       });
 
       if (!response?.ok) {
         pushFeedback({
-          message: response?.message || "Failed to create group",
+          message: patchPermissionMessage(response),
           type: "error",
         });
         return;
@@ -197,15 +245,8 @@ function IdentityGroupsList() {
     }
   };
 
-  const handleUpdateGroup = async () => {
-    if (!selectedGroup) {
-      return;
-    }
-    if (selectedGroup.isSystem) {
-      pushFeedback({
-        message: "System groups cannot be modified",
-        type: "error",
-      });
+  const handleUpdateCustomGroup = async () => {
+    if (!selectedGroup || selectedGroup.isSystem) {
       return;
     }
     if (!draft.name.trim()) {
@@ -218,12 +259,15 @@ function IdentityGroupsList() {
       const response = await request(groupApiPath(selectedGroup.name), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildGroupBody(draft)),
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          mfaRequired: draft.mfaRequired,
+        }),
       });
 
       if (!response?.ok) {
         pushFeedback({
-          message: response?.message || "Failed to update group",
+          message: patchPermissionMessage(response),
           type: "error",
         });
         return;
@@ -236,6 +280,43 @@ function IdentityGroupsList() {
       setShowEditModal(false);
       setIsOpen(false);
       await fetchGroups();
+    } catch (e: unknown) {
+      pushFeedback({
+        message: e instanceof Error ? e.message : "Failed to update group",
+        type: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSystemMfa = async () => {
+    if (!selectedGroup?.isSystem) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await request(groupApiPath(selectedGroup.name), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mfaRequired: systemMfaRequired }),
+      });
+
+      if (!response?.ok) {
+        pushFeedback({
+          message: patchPermissionMessage(response),
+          type: "error",
+        });
+        return;
+      }
+
+      pushFeedback({
+        message: `MFA policy updated for ${selectedGroup.name}`,
+        type: "success",
+      });
+      await fetchGroups();
+      await handleRefreshGroup();
     } catch (e: unknown) {
       pushFeedback({
         message: e instanceof Error ? e.message : "Failed to update group",
@@ -287,7 +368,7 @@ function IdentityGroupsList() {
     }
   };
 
-  const groupFormFields = (
+  const groupFormFields = (readOnlyMfa = false) => (
     <>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         Name
@@ -300,16 +381,12 @@ function IdentityGroupsList() {
         placeholder="group-name"
         autoComplete="off"
       />
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Description
-      </label>
-      <textarea
-        value={draft.description}
-        onChange={(e) =>
-          setDraft((prev) => ({ ...prev, description: e.target.value }))
+      <MfaRequiredToggle
+        checked={draft.mfaRequired}
+        disabled={readOnlyMfa || !canEdit}
+        onChange={(mfaRequired) =>
+          setDraft((prev) => ({ ...prev, mfaRequired }))
         }
-        className="w-full border rounded px-2 py-1 text-sm mb-3 min-h-[80px]"
-        placeholder="Optional description"
       />
     </>
   );
@@ -329,9 +406,11 @@ function IdentityGroupsList() {
       ),
     },
     {
-      key: "description",
-      header: "Description",
-      render: (row: IdentityGroup) => row.description || "—",
+      key: "mfaRequired",
+      header: "MFA required",
+      render: (row: IdentityGroup) => (
+        <MfaRequiredBadge value={row.mfaRequired} />
+      ),
     },
     {
       key: "isSystem",
@@ -359,22 +438,42 @@ function IdentityGroupsList() {
       ),
     },
     {
-      label: "Description",
-      render: (group: IdentityGroup) => group.description || "—",
-    },
-    {
       label: "System group",
       render: (group: IdentityGroup) => (group.isSystem ? "Yes" : "No"),
+    },
+    {
+      label: "MFA required",
+      render: (group: IdentityGroup) =>
+        group.isSystem && canEdit ? (
+          <div className="space-y-2">
+            <MfaRequiredToggle
+              checked={systemMfaRequired}
+              onChange={setSystemMfaRequired}
+            />
+            <button
+              type="button"
+              onClick={() => void handleSaveSystemMfa()}
+              disabled={
+                saving ||
+                systemMfaRequired === (group.mfaRequired === true)
+              }
+              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm"
+            >
+              {saving ? "Saving…" : "Save MFA policy"}
+            </button>
+            <p className="text-xs text-gray-400">
+              System group names cannot be changed. MFA policy can be updated.
+            </p>
+          </div>
+        ) : (
+          <MfaRequiredBadge value={group.mfaRequired} />
+        ),
     },
     {
       label: "Actions",
       isFullSection: true,
       render: (group: IdentityGroup) =>
-        group.isSystem ? (
-          <span className="text-sm text-gray-400">
-            System groups are read-only and cannot be edited or deleted.
-          </span>
-        ) : (
+        group.isSystem ? null : canEdit ? (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -391,6 +490,10 @@ function IdentityGroupsList() {
               Delete group
             </button>
           </div>
+        ) : (
+          <span className="text-sm text-gray-400">
+            You do not have permission to edit groups.
+          </span>
         ),
     },
   ];
@@ -418,13 +521,15 @@ function IdentityGroupsList() {
             >
               Refresh
             </button>
-            <button
-              type="button"
-              className="px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
-              onClick={openCreateModal}
-            >
-              Create group
-            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                className="px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
+                onClick={openCreateModal}
+              >
+                Create group
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -444,7 +549,7 @@ function IdentityGroupsList() {
           enablePolling
           onRefresh={handleRefreshGroup}
           onDelete={
-            selectedGroup && !selectedGroup.isSystem
+            selectedGroup && !selectedGroup.isSystem && canEdit
               ? () => setShowDeleteModal(true)
               : undefined
           }
@@ -457,17 +562,17 @@ function IdentityGroupsList() {
           onConfirm={handleCreateGroup}
           confirmLabel={saving ? "Creating…" : "Create"}
           confirmColor="green"
-          child={groupFormFields}
+          child={groupFormFields()}
         />
 
         <CustomActionModal
           open={showEditModal}
           title={`Edit group${selectedGroup ? `: ${selectedGroup.name}` : ""}`}
           onCancel={() => setShowEditModal(false)}
-          onConfirm={handleUpdateGroup}
+          onConfirm={handleUpdateCustomGroup}
           confirmLabel={saving ? "Saving…" : "Save"}
           confirmColor="blue"
-          child={groupFormFields}
+          child={groupFormFields()}
         />
 
         <UnsavedChangesModal

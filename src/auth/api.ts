@@ -60,7 +60,9 @@ function parseProfileRecord(record: Record<string, unknown>): AuthProfile {
     mustChangePassword:
       typeof record.mustChangePassword === "boolean"
         ? record.mustChangePassword
-        : undefined,
+        : typeof record.password_change_required === "boolean"
+          ? record.password_change_required
+          : undefined,
     mfaEnabled:
       typeof record.mfaEnabled === "boolean" ? record.mfaEnabled : undefined,
   };

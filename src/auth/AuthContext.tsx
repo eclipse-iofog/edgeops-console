@@ -13,6 +13,7 @@ import React, {
 import { tryConsumeOAuthCallbackFromLocation } from "./bootstrap";
 import { fetchProfile, postLogout, postRefresh } from "./api";
 import { isAccessTokenExpiringSoon } from "./jwt";
+import { clearPostLoginRedirect } from "./postLoginRedirect";
 import {
   clearTokens,
   getAccessToken,
@@ -61,6 +62,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const session = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const sessionEpochRef = useRef(0);
   const [profile, setProfile] = useState<AuthProfile | undefined>();
   const [isSessionValidating, setIsSessionValidating] = useState(false);
 
@@ -87,10 +89,11 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
 
     let cancelled = false;
+    const epoch = sessionEpochRef.current;
     setIsSessionValidating(true);
     void (async () => {
       const result = await fetchProfile(accessToken);
-      if (cancelled) {
+      if (cancelled || sessionEpochRef.current !== epoch) {
         return;
       }
 
@@ -123,8 +126,12 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   );
 
   const clearSession = useCallback(() => {
+    sessionEpochRef.current += 1;
+    refreshPromiseRef.current = null;
     clearTokens();
     setProfile(undefined);
+    setIsSessionValidating(false);
+    clearPostLoginRedirect();
   }, []);
 
   const updateProfile = useCallback((nextProfile: AuthProfile) => {
@@ -136,7 +143,11 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (!token) {
       return null;
     }
+    const epoch = sessionEpochRef.current;
     const result = await fetchProfile(token);
+    if (sessionEpochRef.current !== epoch || !getAccessToken()) {
+      return null;
+    }
     if (result.unauthorized) {
       clearSession();
       return null;
@@ -161,6 +172,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       return refreshPromiseRef.current;
     }
 
+    const epoch = sessionEpochRef.current;
     const promise = (async () => {
       const currentRefresh = getRefreshToken();
       if (!currentRefresh) {
@@ -169,7 +181,11 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
       try {
         const tokens = await postRefresh(currentRefresh);
-        if (!tokens) {
+        if (
+          !tokens ||
+          sessionEpochRef.current !== epoch ||
+          !getRefreshToken()
+        ) {
           return false;
         }
         setTokens(tokens);
@@ -177,7 +193,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       } catch {
         return false;
       } finally {
-        refreshPromiseRef.current = null;
+        if (refreshPromiseRef.current === promise) {
+          refreshPromiseRef.current = null;
+        }
       }
     })();
 

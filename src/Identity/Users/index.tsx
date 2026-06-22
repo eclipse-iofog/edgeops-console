@@ -3,13 +3,12 @@ import { useLocation } from "react-router-dom";
 import {
   Copy as CopyIcon,
   Check as CheckIcon,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import CustomActionModal from "@/components/ui/CustomActionModal";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
 import CustomSelect from "@/components/ui/CustomSelect";
+import PasswordInput from "@/components/ui/PasswordInput";
 import SlideOver from "@/components/ui/SlideOver";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
 import { ControllerContext } from "@/app/providers";
@@ -63,7 +62,6 @@ function IdentityUsersList() {
   const [resetting, setResetting] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showCreatePassword, setShowCreatePassword] = useState(false);
-
   const params = new URLSearchParams(location.search);
   const userIdParam = params.get("userId");
 
@@ -554,46 +552,32 @@ function IdentityUsersList() {
             </button>
           </div>
           <div className="relative mb-3">
-            <input
-              type={showCreatePassword ? "text" : "password"}
+            <PasswordInput
               value={draft.password}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, password: e.target.value }))
               }
-              className="w-full border rounded px-2 py-1 pr-16 text-sm"
+              visible={showCreatePassword}
+              onVisibleChange={setShowCreatePassword}
               placeholder="Initial password"
               autoComplete="new-password"
+              trailingActions={
+                <button
+                  type="button"
+                  onClick={() => copyValue("Create password", draft.password)}
+                  disabled={!draft.password}
+                  className="text-gray-600 hover:text-gray-900 disabled:opacity-40 p-0.5"
+                  aria-label="Copy password"
+                  title="Copy password"
+                >
+                  {copiedField === "Create password" ? (
+                    <CheckIcon size={16} />
+                  ) : (
+                    <CopyIcon size={16} />
+                  )}
+                </button>
+              }
             />
-            <div className="absolute inset-y-0 right-2 flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setShowCreatePassword((visible) => !visible)}
-                className="text-gray-600 hover:text-gray-900 p-0.5"
-                aria-label={
-                  showCreatePassword ? "Hide password" : "Show password"
-                }
-              >
-                {showCreatePassword ? (
-                  <EyeOff size={16} />
-                ) : (
-                  <Eye size={16} />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => copyValue("Create password", draft.password)}
-                disabled={!draft.password}
-                className="text-gray-600 hover:text-gray-900 disabled:opacity-40 p-0.5"
-                aria-label="Copy password"
-                title="Copy password"
-              >
-                {copiedField === "Create password" ? (
-                  <CheckIcon size={16} />
-                ) : (
-                  <CopyIcon size={16} />
-                )}
-              </button>
-            </div>
           </div>
         </>
       ) : null}

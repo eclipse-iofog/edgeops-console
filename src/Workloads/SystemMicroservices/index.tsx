@@ -1227,24 +1227,26 @@ function SystemMicroserviceList() {
               <h2 className="text-sm font-semibold text-gray-300">
                 {node?.id}
               </h2>
-              {!node.isController && (
-                <div className="flex space-x-2">
-                  {dirtyEditors && (
-                    <button
-                      onClick={handleConfigPatch}
-                      className="hover:text-green-600 hover:bg-white rounded"
-                    >
-                      <EditOutlinedIcon fontSize="small" />
-                    </button>
-                  )}
+              <div className="flex space-x-2">
+                {dirtyEditors && (
+                  <button
+                    onClick={handleConfigPatch}
+                    className="hover:text-green-600 hover:bg-white rounded"
+                    aria-label="Save config"
+                  >
+                    <EditOutlinedIcon fontSize="small" />
+                  </button>
+                )}
+                {!node.isController && (
                   <button
                     onClick={handleConfigDelete}
-                    className="hover:text-green-600 hover:bg-white rounded"
+                    className="hover:text-red-600 hover:bg-white rounded"
+                    aria-label="Delete config"
                   >
                     <DeleteOutlineIcon fontSize="small" />
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <AceEditor
@@ -1252,22 +1254,16 @@ function SystemMicroserviceList() {
               theme="tomorrow"
               name={`editor-service`}
               value={editorContent}
-              onChange={
-                node.isController
-                  ? undefined
-                  : function editorChanged(value: string) {
-                      setDirtyEditors(true);
-                      setEditorValues(value);
-                      setEditorContent(value);
-                    }
-              }
-              readOnly={node.isController}
+              onChange={(value: string) => {
+                setDirtyEditors(true);
+                setEditorValues(value);
+                setEditorContent(value);
+              }}
               showPrintMargin={false}
               setOptions={{
                 useWorker: false,
                 wrap: true,
                 tabSize: 2,
-                readOnly: node.isController,
               }}
               onLoad={(editor) => {
                 editor.renderer.setPadding(10);
@@ -1307,7 +1303,7 @@ function SystemMicroserviceList() {
         onDelete={
           isControllerMs ? undefined : () => setShowDeleteConfirmModal(true)
         }
-        onEditYaml={isControllerMs ? undefined : handleEditYaml}
+        onEditYaml={handleEditYaml}
         onTerminal={() => enableExecAndOpenTerminal(selectedMs?.uuid!)}
         onLogs={handleOpenLogs}
         customWidth={750}

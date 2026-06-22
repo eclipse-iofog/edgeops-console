@@ -23,8 +23,8 @@ export function parseIdentityGroup(raw: unknown): IdentityGroup | null {
     name,
     isSystem:
       typeof nested.isSystem === "boolean" ? nested.isSystem : undefined,
-    description:
-      typeof nested.description === "string" ? nested.description : undefined,
+    mfaRequired:
+      typeof nested.mfaRequired === "boolean" ? nested.mfaRequired : undefined,
   };
 }
 

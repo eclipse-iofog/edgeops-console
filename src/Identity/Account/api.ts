@@ -27,8 +27,8 @@ export async function postMfaDisable(
     return { kind: "error", message: "Not signed in" };
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/v3/user/mfa/disable`, {
-    method: "POST",
+  const response = await fetch(`${getApiBaseUrl()}/api/v3/user/mfa`, {
+    method: "DELETE",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",

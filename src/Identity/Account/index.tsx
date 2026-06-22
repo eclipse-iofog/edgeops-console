@@ -8,6 +8,7 @@ import {
   postMfaEnroll,
 } from "../../auth/api";
 import { FeedbackContext } from "@/app/providers";
+import PasswordInput from "@/components/ui/PasswordInput";
 import MfaEnrollQr from "../../auth/MfaEnrollQr";
 import { postMfaDisable } from "./api";
 
@@ -234,12 +235,11 @@ function IdentityAccountPage() {
               >
                 Current password
               </label>
-              <input
+              <PasswordInput
                 id="account-current-password"
-                type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full border border-gray-600 rounded bg-gray-900 text-white px-2 py-1.5 text-sm"
+                theme="dark"
                 autoComplete="current-password"
                 disabled={passwordSaving}
                 required
@@ -253,12 +253,11 @@ function IdentityAccountPage() {
               >
                 New password
               </label>
-              <input
+              <PasswordInput
                 id="account-new-password"
-                type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full border border-gray-600 rounded bg-gray-900 text-white px-2 py-1.5 text-sm"
+                theme="dark"
                 autoComplete="new-password"
                 disabled={passwordSaving}
                 required
@@ -272,12 +271,11 @@ function IdentityAccountPage() {
               >
                 Confirm new password
               </label>
-              <input
+              <PasswordInput
                 id="account-confirm-password"
-                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-gray-600 rounded bg-gray-900 text-white px-2 py-1.5 text-sm"
+                theme="dark"
                 autoComplete="new-password"
                 disabled={passwordSaving}
                 required
