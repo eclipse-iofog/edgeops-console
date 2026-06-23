@@ -150,6 +150,7 @@ const GlobalTerminalDrawer = ({
             microserviceUuid={session.microserviceUuid}
             execId={session.execId}
             nodeUuid={session.nodeUuid}
+            agentName={session.agentName}
             waitingForDebugger={session.waitingForDebugger}
             onClose={() => {
               handleRemoveSession(session.id);

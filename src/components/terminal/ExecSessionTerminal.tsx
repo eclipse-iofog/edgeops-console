@@ -14,6 +14,7 @@ type ExecSessionTerminalProps = {
   execId?: string;
   onClose?: () => void;
   nodeUuid?: string;
+  agentName?: string;
   waitingForDebugger?: boolean;
 };
 
@@ -155,6 +156,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   execId = "",
   onClose,
   nodeUuid,
+  agentName,
   waitingForDebugger = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -177,6 +179,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   const { debugUuid, status: debuggerStatus } = useDebuggerStatus(
     nodeUuid,
     waitingForDebugger,
+    agentName,
   );
 
   // Update socket URL and microservice UUID when debugger is ready

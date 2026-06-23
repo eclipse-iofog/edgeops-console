@@ -282,8 +282,9 @@ const AgentSlideOverPanel: React.FC<AgentSlideOverPanelProps> = ({
           title: `Agent Shell: ${selectedNode?.name}`,
           socketUrl,
           authToken: auth?.user?.access_token,
-          microserviceUuid: "placeholder",
+          microserviceUuid: selectedNode.uuid,
           nodeUuid: selectedNode.uuid,
+          agentName: selectedNode.name,
           waitingForDebugger: true,
           debuggerStatus: "waiting",
         });

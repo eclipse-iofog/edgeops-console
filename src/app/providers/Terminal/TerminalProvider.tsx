@@ -19,6 +19,7 @@ export interface TerminalSession {
   isActive: boolean;
   createdAt: number;
   nodeUuid?: string; // For node exec sessions
+  agentName?: string; // For agent exec: resolves system-{agentName} application
   waitingForDebugger?: boolean; // Indicates we're waiting for debug microservice
   debuggerStatus?: "waiting" | "starting" | "running" | "error";
 }
