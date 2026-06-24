@@ -75,7 +75,7 @@ export default function Alert(props) {
     <Box
       sx={{
         position: "fixed",
-        top: "20px",
+        bottom: "calc(var(--terminal-drawer-height, 0px) + 20px)",
         right: "20px",
         left: "auto",
         zIndex: 105,
@@ -85,9 +85,10 @@ export default function Alert(props) {
         flexDirection: "column-reverse",
         gap: "12px",
         pointerEvents: "none",
+        transition: "bottom 0.2s ease",
         "@media (max-width: 640px)": {
           maxWidth: "calc(100vw - 40px)",
-          top: "16px",
+          bottom: "calc(var(--terminal-drawer-height, 0px) + 16px)",
           right: "20px",
           left: "20px",
         },

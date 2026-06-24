@@ -10,6 +10,7 @@ interface Feedback {
   type: FeedbackType;
   timeout: number;
   createdAt: number;
+  autoHideMs: number;
   remainingTime?: number;
   [key: string]: any;
 }
@@ -28,7 +29,15 @@ export const FeedbackContext = createContext<FeedbackContextType>({
 
 export const useFeedback = () => useContext(FeedbackContext);
 
-const AUTO_HIDE = 6000;
+const AUTO_HIDE_BY_TYPE: Record<FeedbackType, number> = {
+  success: 4000,
+  error: 6000,
+  warning: 6000,
+  info: 6000,
+};
+
+const getAutoHideMs = (type: FeedbackType) =>
+  AUTO_HIDE_BY_TYPE[type] ?? 6000;
 
 const actions = {
   ADD: "add",
@@ -67,14 +76,16 @@ const reducer = (state: State, action: Action): State => {
     case actions.ADD: {
       const { message, type, ...rest } = action.data;
       const createdAt = Date.now();
+      const autoHideMs = getAutoHideMs(type);
 
       const newFeedback: Feedback = {
         id: state.nextId,
         message,
         type,
+        autoHideMs,
         timeout: window.setTimeout(() => {
           action.dispatch({ type: actions.REMOVE, data: { id: state.nextId } });
-        }, AUTO_HIDE),
+        }, autoHideMs),
         createdAt,
         ...rest,
       };
@@ -111,7 +122,7 @@ const reducer = (state: State, action: Action): State => {
       clearTimeout(feedback.timeout);
 
       const elapsed = Date.now() - feedback.createdAt;
-      const remainingTime = Math.max(0, AUTO_HIDE - elapsed);
+      const remainingTime = Math.max(0, feedback.autoHideMs - elapsed);
 
       return {
         ...state,
@@ -120,7 +131,8 @@ const reducer = (state: State, action: Action): State => {
             ? {
                 ...f,
                 timeout: 0,
-                remainingTime: remainingTime > 0 ? remainingTime : AUTO_HIDE,
+                remainingTime:
+                  remainingTime > 0 ? remainingTime : feedback.autoHideMs,
               }
             : f,
         ),
@@ -134,7 +146,7 @@ const reducer = (state: State, action: Action): State => {
       if (idxToResume === -1) return state;
 
       const feedback = state.feedbacks[idxToResume];
-      const remainingTime = feedback.remainingTime ?? AUTO_HIDE;
+      const remainingTime = feedback.remainingTime ?? feedback.autoHideMs;
 
       if (remainingTime > 100) {
         // Only resume if there's meaningful time left (more than 100ms)
@@ -153,7 +165,7 @@ const reducer = (state: State, action: Action): State => {
                   ...f,
                   timeout: newTimeout,
                   remainingTime: undefined,
-                  createdAt: Date.now() - (AUTO_HIDE - remainingTime),
+                  createdAt: Date.now() - (feedback.autoHideMs - remainingTime),
                 }
               : f,
           ),

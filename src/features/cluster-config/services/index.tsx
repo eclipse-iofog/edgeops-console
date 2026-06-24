@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import { ControllerContext } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
@@ -12,6 +12,11 @@ import yaml from "js-yaml";
 import { useTerminal } from "@/app/providers";
 import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
+import {
+  isProvisioningPending,
+  ProvisioningStatusBadge,
+  ReconcileActionControl,
+} from "@/lib/platformReconcile";
 
 function Services() {
   const [fetching, setFetching] = React.useState(true);
@@ -22,6 +27,7 @@ function Services() {
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const serviceName = params.get("name");
@@ -150,6 +156,34 @@ function Services() {
     }
   };
 
+  const handleReconcileService = useCallback(async () => {
+    if (!selectedService?.name) return;
+    setReconciling(true);
+    try {
+      const res = await request(
+        `/api/v3/services/${selectedService.name}/reconcile`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        pushFeedback({ message: res.message, type: "error" });
+        return;
+      }
+      const service = await res.json();
+      setSelectedService(service);
+      pushFeedback({
+        message: "Service reconcile triggered",
+        type: "success",
+      });
+      fetchServices();
+    } catch (e: any) {
+      pushFeedback({ message: e.message, type: "error", uuid: "error" });
+    } finally {
+      setReconciling(false);
+    }
+  }, [selectedService?.name, request, pushFeedback]);
+
+  const provisioningStatus = selectedService?.provisioningStatus;
+
   useEffect(() => {
     fetchServices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,14 +288,17 @@ function Services() {
         pushFeedback({ message: res.message, type: "error" });
       } else {
         pushFeedback({
-          message: `Service ${name} ${method === "POST" ? "Added" : "Updated"}`,
+          message:
+            method === "POST"
+              ? `Service ${name} added — hub provisioning in progress`
+              : `Service ${name} updated — hub provisioning in progress`,
           type: "success",
         });
-        if (method === "PATCH") {
-          setIsOpen(false);
+        if (method === "PATCH" && name) {
+          await fetchServicesItem(name);
+        } else {
+          fetchServices();
         }
-        // Refresh the list after successful POST or PATCH
-        fetchServices();
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -340,11 +377,17 @@ function Services() {
     {
       key: "provisioningStatus",
       header: "status",
-      render: (row: any) => <span>{row.provisioningStatus || "-"}</span>,
+      render: (row: any) =>
+        row.provisioningStatus ? (
+          <ProvisioningStatusBadge status={row.provisioningStatus} />
+        ) : (
+          <span>-</span>
+        ),
     },
   ];
 
-  const slideOverFields = [
+  const slideOverFields = useMemo(
+    () => [
     {
       label: "Service Details",
       render: () => "",
@@ -415,10 +458,51 @@ function Services() {
       render: (row: any) => row.servicePort || "N/A",
     },
     {
-      label: "Provisioning Status",
-      render: (row: any) => row.provisioningStatus || "N/A",
+      label: "Hub provisioning",
+      render: () => "",
+      isSectionHeader: true,
     },
-  ];
+    {
+      label: "Manual sync",
+      render: () => (
+        <ReconcileActionControl
+          onReconcile={handleReconcileService}
+          spinning={isProvisioningPending(provisioningStatus)}
+          reconciling={reconciling}
+          title="Re-runs hub connector, listener, and Kubernetes service setup."
+          label="Sync now"
+        />
+      ),
+    },
+    {
+      label: "Hub status",
+      render: (row: any) =>
+        row.provisioningStatus ? (
+          <ProvisioningStatusBadge status={row.provisioningStatus} />
+        ) : (
+          "N/A"
+        ),
+    },
+    {
+      label: "Provisioning Error",
+      render: (row: any) => {
+        if (!row.provisioningError) return "N/A";
+        return (
+          <span className="text-red-300 whitespace-pre-wrap break-words">
+            {row.provisioningError}
+          </span>
+        );
+      },
+    },
+  ],
+    [
+      provisioningStatus,
+      reconciling,
+      handleReconcileService,
+      renderServiceEndpoint,
+      renderTags,
+    ],
+  );
 
   return (
     <>

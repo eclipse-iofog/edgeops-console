@@ -3,6 +3,7 @@ import CustomLeaflet from "@/components/ui/CustomLeaflet";
 import CustomSelect from "@/components/ui/CustomSelect";
 import { useData, useController } from "@/app/providers";
 import AgentSlideOverPanel from "@/features/agents/AgentSlideOverPanel";
+import { resolveAgentMarkerColor } from "@/lib/platformReconcile";
 
 interface CustomLeafletProps {
   collapsed: boolean;
@@ -48,7 +49,7 @@ const Map: React.FC<CustomLeafletProps> = ({ collapsed }) => {
       .map((agent: any) => ({
         id: agent.uuid,
         position: [agent.latitude, agent.longitude] as [number, number],
-        color: agent.daemonStatus === "RUNNING" ? "green" : "red",
+        color: resolveAgentMarkerColor(agent),
         label: agent.name,
         description: agent.description,
         ip: agent.ipAddress,

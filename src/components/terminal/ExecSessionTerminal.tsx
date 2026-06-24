@@ -170,10 +170,8 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializedRef = useRef<boolean>(false);
-  const [actualSocketUrl, setActualSocketUrl] = useState<string>(socketUrl);
-  const [actualMicroserviceUuid, setActualMicroserviceUuid] =
-    useState<string>(microserviceUuid);
   const [statusMessageShown, setStatusMessageShown] = useState(false);
+  const [readyMessageShown, setReadyMessageShown] = useState(false);
 
   // Use debugger status hook when waiting for debugger
   const { debugUuid, status: debuggerStatus } = useDebuggerStatus(
@@ -182,24 +180,22 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     agentName,
   );
 
-  // Update socket URL and microservice UUID when debugger is ready
+  // Show ready message when debugger is available (WebSocket connects separately)
   useEffect(() => {
-    if (waitingForDebugger && debugUuid && debuggerStatus === "running") {
-      const newSocketUrl = `${getWsBaseUrl()}/api/v3/microservices/system/exec/${debugUuid}`;
-
-      setActualSocketUrl(newSocketUrl);
-      setActualMicroserviceUuid(debugUuid);
-      sessionRef.current.microserviceUuid = debugUuid;
-
-      // Clear terminal and show ready message
-      if (termRef.current) {
-        termRef.current.clear();
-        termRef.current.writeln(
-          "\x1b[32m✓ Debug container is running, connecting to terminal...\x1b[0m",
-        );
-      }
+    if (
+      waitingForDebugger &&
+      debugUuid &&
+      debuggerStatus === "running" &&
+      termRef.current &&
+      !readyMessageShown
+    ) {
+      termRef.current.clear();
+      termRef.current.writeln(
+        "\x1b[32m✓ Debug container is running, connecting to terminal...\x1b[0m",
+      );
+      setReadyMessageShown(true);
     }
-  }, [waitingForDebugger, debugUuid, debuggerStatus]);
+  }, [waitingForDebugger, debugUuid, debuggerStatus, readyMessageShown]);
 
   const startPingMechanism = (ws: WebSocket) => {
     // Clear any existing ping interval
@@ -354,9 +350,21 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
 
   // Initialize WebSocket connection (only when debugger is ready or not waiting)
   useEffect(() => {
-    // Don't initialize WebSocket if we're waiting for debugger and it's not ready
-    if (waitingForDebugger && debuggerStatus !== "running") {
-      return;
+    let finalSocketUrl: string;
+    let finalMicroserviceUuid: string;
+
+    if (waitingForDebugger) {
+      if (debuggerStatus !== "running" || !debugUuid) {
+        return;
+      }
+      finalSocketUrl = `${getWsBaseUrl()}/api/v3/microservices/system/exec/${debugUuid}`;
+      finalMicroserviceUuid = debugUuid;
+    } else {
+      if (!socketUrl) {
+        return;
+      }
+      finalSocketUrl = socketUrl;
+      finalMicroserviceUuid = microserviceUuid;
     }
 
     // Prevent multiple initializations
@@ -371,9 +379,6 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     const session = { ...sessionRef.current };
     isInitializedRef.current = true;
 
-    // Use actualSocketUrl (updated when debugger is ready) or fallback to socketUrl
-    const finalSocketUrl = actualSocketUrl || socketUrl;
-    const finalMicroserviceUuid = actualMicroserviceUuid || microserviceUuid;
     sessionRef.current.microserviceUuid = finalMicroserviceUuid;
 
     const wsUrl = authToken
@@ -522,7 +527,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       isInitializedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actualSocketUrl, waitingForDebugger, debuggerStatus]);
+  }, [socketUrl, waitingForDebugger, debuggerStatus, debugUuid, microserviceUuid]);
 
   return (
     <div

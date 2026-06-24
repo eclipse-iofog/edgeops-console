@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Copy as FileCopyIcon,
   Check as CheckIcon,
@@ -17,7 +17,6 @@ import ExecConfigModal, {
 } from "@/components/ui/ExecConfigModal";
 import VersionCommandModal from "@/components/ui/VersionCommandModal";
 import { useData, useController, useFeedback, useTerminal, useLogViewer } from "@/app/providers";
-import AgentManager from "@/app/providers/Data/agent-manager";
 import { useAuth } from "@/auth";
 import { getApiV3BaseUrl, getWsBaseUrl } from "@/auth/api";
 import {
@@ -31,6 +30,7 @@ import {
   VersionCommandConfig,
 } from "@/lib/agentCritical";
 import { buildAgentSlideOverFields } from "./agentSlideOverFields";
+import { isPlatformReconciling } from "@/lib/platformReconcile";
 
 type AgentSlideOverPanelProps = {
   open: boolean;
@@ -69,31 +69,77 @@ const AgentSlideOverPanel: React.FC<AgentSlideOverPanelProps> = ({
   const [showVersionConfirmModal, setShowVersionConfirmModal] = useState(false);
   const [pendingVersionConfig, setPendingVersionConfig] =
     useState<VersionCommandConfig | null>(null);
-
-  const slideOverFields = useMemo(
-    () => buildAgentSlideOverFields(data),
-    [data],
-  );
+  const [reconciling, setReconciling] = useState(false);
 
   const selectedNodeIsCritical = useMemo(
     () => isCriticalAgent(selectedNode, data?.systemApplications),
     [selectedNode, data?.systemApplications],
   );
 
+  const fetchAgentDetail = useCallback(
+    async (uuid: string) => {
+      try {
+        const res = await request(`/api/v3/iofog/${uuid}`);
+        if (res.ok) {
+          const detail = await res.json();
+          onSelectedNodeChange(detail);
+        }
+      } catch (e) {
+        console.error("Error fetching agent detail:", e);
+      }
+    },
+    [request, onSelectedNodeChange],
+  );
+
+  useEffect(() => {
+    if (open && selectedNode?.uuid) {
+      fetchAgentDetail(selectedNode.uuid);
+    }
+  }, [open, selectedNode?.uuid, fetchAgentDetail]);
+
   const handleRefreshAgent = async () => {
     if (!selectedNode?.uuid) return;
-    try {
-      const agents = await AgentManager.listAgents(request)();
-      const updatedAgent = agents.find(
-        (a: any) => a.uuid === selectedNode.uuid,
-      );
-      if (updatedAgent) {
-        onSelectedNodeChange(updatedAgent);
-      }
-    } catch (e) {
-      console.error("Error refreshing agent data:", e);
-    }
+    await fetchAgentDetail(selectedNode.uuid);
   };
+
+  const handleReconcileAgent = useCallback(async () => {
+    if (!selectedNode?.uuid) return;
+    setReconciling(true);
+    try {
+      const res = await request(
+        `/api/v3/iofog/${selectedNode.uuid}/reconcile`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        pushFeedback({ message: res.message, type: "error" });
+        return;
+      }
+      pushFeedback({
+        message: "Platform reconcile triggered",
+        type: "success",
+      });
+      await fetchAgentDetail(selectedNode.uuid);
+    } catch (e: any) {
+      pushFeedback({ message: e.message, type: "error", uuid: "error" });
+    } finally {
+      setReconciling(false);
+    }
+  }, [selectedNode?.uuid, request, pushFeedback, fetchAgentDetail]);
+
+  const slideOverFields = useMemo(
+    () =>
+      buildAgentSlideOverFields(data, {
+        onReconcile: handleReconcileAgent,
+        reconciling,
+        spinning: isPlatformReconciling(selectedNode?.platformStatus?.phase),
+      }),
+    [
+      data,
+      handleReconcileAgent,
+      reconciling,
+      selectedNode?.platformStatus?.phase,
+    ],
+  );
 
   const handleRestart = async () => {
     try {
@@ -276,11 +322,9 @@ const AgentSlideOverPanel: React.FC<AgentSlideOverPanelProps> = ({
           agentName: selectedNode?.name,
         });
 
-        const socketUrl = `${getWsBaseUrl()}/api/v3/microservices/system/exec/placeholder`;
-
         addTerminalSession({
           title: `Agent Shell: ${selectedNode?.name}`,
-          socketUrl,
+          socketUrl: "",
           authToken: auth?.user?.access_token,
           microserviceUuid: selectedNode.uuid,
           nodeUuid: selectedNode.uuid,
@@ -428,11 +472,13 @@ const AgentSlideOverPanel: React.FC<AgentSlideOverPanelProps> = ({
       }
 
       pushFeedback({
-        message: `Agent: ${selectedNode?.name} Config Updated`,
+        message: "Config updated — platform reconcile in progress",
         type: "success",
       });
       setEditorDataChanged(null);
-      onClose();
+      if (selectedNode?.uuid) {
+        await fetchAgentDetail(selectedNode.uuid);
+      }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
       throw e;

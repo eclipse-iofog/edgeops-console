@@ -25,6 +25,7 @@ type SlideOverProps<T> = {
   open: boolean;
   onClose: () => void;
   title?: string;
+  titleExtra?: React.ReactNode;
   data: T | null;
   fields: Field<T>[];
   onRestart?: () => void;
@@ -50,6 +51,7 @@ const SlideOver = <T,>({
   open,
   onClose,
   title,
+  titleExtra,
   data,
   fields,
   onRestart,
@@ -188,10 +190,17 @@ const SlideOver = <T,>({
                   />
 
                   <div className="flex items-start justify-between p-4 border-b border-gray-700">
-                    <Dialog.Title className="text-lg font-medium">
-                      {title || "Details"}
-                    </Dialog.Title>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-1.5 min-w-0 flex-1 mr-2">
+                      <Dialog.Title className="text-lg font-medium truncate">
+                        {title || "Details"}
+                      </Dialog.Title>
+                      {titleExtra ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {titleExtra}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                       {onAttach && (
                         <button
                           onClick={onAttach}

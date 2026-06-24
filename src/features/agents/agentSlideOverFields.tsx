@@ -11,6 +11,7 @@ import {
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { BadgeList } from "@/AccessControl/utils/badgeHelpers";
 import { formatAgentDuration } from "./formatAgentDuration";
+import { PlatformStatusBadge, ReconcileActionControl } from "@/lib/platformReconcile";
 
 const renderAgentTags = (tags: any) => {
   if (!tags) return "N/A";
@@ -33,7 +34,16 @@ const renderAgentTags = (tags: any) => {
   );
 };
 
-export const buildAgentSlideOverFields = (data: any) => {
+export type AgentSlideOverReconcileOptions = {
+  onReconcile: () => void;
+  reconciling: boolean;
+  spinning: boolean;
+};
+
+export const buildAgentSlideOverFields = (
+  data: any,
+  reconcile?: AgentSlideOverReconcileOptions,
+) => {
   return [
     {
       label: "uuid",
@@ -55,6 +65,89 @@ export const buildAgentSlideOverFields = (data: any) => {
           >
             {row.daemonStatus}
           </span>
+        );
+      },
+    },
+    {
+      label: "Platform infrastructure",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    ...(reconcile
+      ? [
+          {
+            label: "Manual sync",
+            render: () => (
+              <ReconcileActionControl
+                onReconcile={reconcile.onReconcile}
+                spinning={reconcile.spinning}
+                reconciling={reconcile.reconciling}
+                title="Re-applies router and NATS platform configuration for this node."
+                label="Sync now"
+              />
+            ),
+          },
+        ]
+      : []),
+    {
+      label: "Setup status",
+      render: (row: any) => {
+        const phase = row.platformStatus?.phase;
+        if (!phase) return "N/A";
+        return <PlatformStatusBadge phase={phase} />;
+      },
+    },
+    {
+      label: "Last Error",
+      render: (row: any) => {
+        const lastError = row.platformStatus?.lastError;
+        if (!lastError) return "N/A";
+        return (
+          <span className="text-red-300 whitespace-pre-wrap break-words">
+            {lastError}
+          </span>
+        );
+      },
+    },
+    {
+      label: "Generation",
+      render: (row: any) => {
+        const ps = row.platformStatus;
+        if (!ps) return "N/A";
+        const drift = ps.generation !== ps.observedGeneration;
+        return (
+          <span className={drift ? "text-amber-300" : undefined}>
+            {ps.observedGeneration} / {ps.generation}
+            {drift ? " (in progress)" : ""}
+          </span>
+        );
+      },
+    },
+    {
+      label: "Last Transition",
+      render: (row: any) => {
+        const at = row.platformStatus?.lastTransitionAt;
+        if (!at) return "N/A";
+        const date = new Date(at);
+        return `${formatDistanceToNow(date, { addSuffix: true })} (${format(date, "PPpp")})`;
+      },
+    },
+    {
+      label: "Conditions",
+      render: (row: any) => {
+        const conditions = row.platformStatus?.conditions;
+        if (!Array.isArray(conditions) || conditions.length === 0) {
+          return "N/A";
+        }
+        return (
+          <div className="space-y-1">
+            {conditions.map((c: any, i: number) => (
+              <div key={i} className="text-xs text-gray-300">
+                {c.type}: {c.status}
+                {c.reason ? ` (${c.reason})` : ""}
+              </div>
+            ))}
+          </div>
         );
       },
     },
