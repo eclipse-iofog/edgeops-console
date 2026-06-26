@@ -286,7 +286,11 @@ const ResizableBottomDrawer = ({
                             );
                             if (!activeTab) return "";
                             if (activeTab.title?.includes("Shell:")) {
-                              return `Shell into ${activeTab.title.replace("Shell: ", "")}`;
+                              const shellTarget = activeTab.title.replace(
+                                /^.*Shell:\s*/,
+                                "",
+                              );
+                              return `Shell into ${shellTarget}`;
                             } else if (
                               activeTab.title?.includes(
                                 "Application Template Form:",
@@ -295,6 +299,12 @@ const ResizableBottomDrawer = ({
                               return `Deploying Application from ${activeTab.title.replace("Application Template Form: ", "")} Template`;
                             } else if (activeTab.title?.includes("YAML:")) {
                               return `Editing ${activeTab.title.replace("YAML: ", "")} YAML`;
+                            } else if (activeTab.title?.includes("Logs:")) {
+                              const logTarget = activeTab.title.replace(
+                                /^.*Logs:\s*/,
+                                "",
+                              );
+                              return `Viewing logs for ${logTarget}`;
                             }
                             return "";
                           })()}

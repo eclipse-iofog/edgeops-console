@@ -23,6 +23,7 @@ type Message = {
   data: Uint8Array;
   microserviceUuid: string;
   execId: string;
+  sessionId?: string;
   timestamp: number;
 };
 
@@ -34,20 +35,14 @@ const MessageTypeClose = 4;
 const MessageTypeActivation = 5;
 
 const errorMessages: Record<string, string> = {
-  "No available exec session":
-    "No available exec session for this agent or microservice. Be sure to attach/link exec session to the agent or microservice first. If you already attached/linked exec session to the agent or microservice, please wait for the exec session to be ready.",
-  "Microservice has already active exec session":
-    "Another user is already connected to this microservice. Only one user can connect at a time.",
+  "Maximum of 3 concurrent exec sessions allowed for this microservice.":
+    "Maximum exec sessions reached for this microservice.",
   "Timeout waiting for agent connection":
-    "Timeout waiting for agent connection. Please ensure the microservice/agent is running and try again.",
+    "Agent did not connect — retry.",
   "Authentication failed":
     "Authentication failed. Please check your credentials and try again.",
   "Microservice is not running":
     "Microservice is not running. Please start the microservice first.",
-  "Microservice exec is not enabled":
-    "Microservice exec is not enabled. Please enable exec for this microservice.",
-  "Microservice already has an active session":
-    "Another user is already connected to this microservice. Only one user can connect at a time.",
   "Insufficient permissions":
     "Insufficient permissions. Required roles: SRE for Node Exec or Developer for Microservice Exec.",
   "Only SRE can access system microservices":
@@ -148,6 +143,17 @@ function extractCloseReason(errStr: string): string {
   return "";
 }
 
+function isShellExitInput(data: string, lineBuffer: string): boolean {
+  if (data.includes("\x04")) {
+    return true;
+  }
+  if (!data.includes("\r") && !data.includes("\n")) {
+    return false;
+  }
+  const line = lineBuffer.replace(/\r/g, "").replace(/\n/g, "").trim();
+  return line === "exit" || line === "logout";
+}
+
 const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   socketUrl,
   authToken,
@@ -170,6 +176,11 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializedRef = useRef<boolean>(false);
+  const sessionEndedRef = useRef<boolean>(false);
+  const userInitiatedCloseRef = useRef<boolean>(false);
+  const inputListenerRef = useRef<{ dispose: () => void } | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [statusMessageShown, setStatusMessageShown] = useState(false);
   const [readyMessageShown, setReadyMessageShown] = useState(false);
 
@@ -376,10 +387,62 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       return; // Terminal not initialized yet
     }
     const term = termRef.current;
-    const session = { ...sessionRef.current };
     isInitializedRef.current = true;
+    sessionEndedRef.current = false;
+    userInitiatedCloseRef.current = false;
 
     sessionRef.current.microserviceUuid = finalMicroserviceUuid;
+
+    const sendExecCloseFrame = (targetWs: WebSocket) => {
+      if (sessionEndedRef.current || targetWs.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      const { execId, microserviceUuid: msUuid } = sessionRef.current;
+      if (!execId) {
+        return;
+      }
+
+      const closeMsg: Message = {
+        type: MessageTypeClose,
+        data: new Uint8Array(0),
+        microserviceUuid: msUuid,
+        execId,
+        sessionId: execId,
+        timestamp: Date.now(),
+      };
+
+      try {
+        targetWs.send(msgpack.encode(closeMsg));
+        userInitiatedCloseRef.current = true;
+      } catch (error) {
+        console.warn("Failed to send close message:", error);
+      }
+    };
+
+    const getSessionEndMessage = (code: number, reason: string) => {
+      const isNormalTeardown =
+        code === 1000 ||
+        (userInitiatedCloseRef.current && code === 1005);
+
+      if (isNormalTeardown) {
+        return `\r\n\x1b[32m✓ Exec Session successfully closed\x1b[0m`;
+      }
+
+      return `\r\n\x1b[31m✗ Connection closed: ${formatWebSocketError(`close ${code} ${reason}`)}\x1b[0m`;
+    };
+
+    const markSessionEnded = (message: string) => {
+      if (sessionEndedRef.current) {
+        return;
+      }
+      sessionEndedRef.current = true;
+      stopPingMechanism();
+      inputListenerRef.current?.dispose();
+      inputListenerRef.current = null;
+      term.options.disableStdin = true;
+      term.options.cursorBlink = false;
+      term.writeln(message);
+    };
 
     const wsUrl = authToken
       ? `${finalSocketUrl}?token=${authToken}`
@@ -389,9 +452,6 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     wsRef.current = ws;
 
     ws.onopen = () => {
-      term.writeln("\x1b[32m✓ Connected to Exec session\x1b[0m");
-
-      // Start ping mechanism to keep connection alive
       startPingMechanism(ws);
     };
     ws.onmessage = (evt) => {
@@ -424,22 +484,40 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
               }
               break;
 
-            case MessageTypeActivation:
-              // Session activation message - update exec ID if provided
-              if (decoded.execId) {
-                // Store the exec ID for future messages
-                sessionRef.current.execId = decoded.execId;
+            case MessageTypeActivation: {
+              const activationExecId =
+                decoded.execId || decoded.sessionId || "";
+              if (activationExecId) {
+                sessionRef.current.execId = activationExecId;
               }
               if (decoded.microserviceUuid) {
                 sessionRef.current.microserviceUuid = decoded.microserviceUuid;
               }
-              term.writeln("\r\n\x1b[36m🔗 Session activated\x1b[0m");
+              if (decoded.data?.length) {
+                try {
+                  const activation = JSON.parse(
+                    new TextDecoder().decode(decoded.data),
+                  ) as {
+                    sessionId?: string;
+                    microserviceUuid?: string;
+                  };
+                  if (activation.sessionId) {
+                    sessionRef.current.execId = activation.sessionId;
+                  }
+                  if (activation.microserviceUuid) {
+                    sessionRef.current.microserviceUuid =
+                      activation.microserviceUuid;
+                  }
+                } catch {
+                  // ACTIVATION data is optional JSON; ignore parse failures
+                }
+              }
               break;
+            }
 
             case MessageTypeClose:
-              // Session close message
-              term.writeln("\r\n Session closed");
-              ws.close();
+              markSessionEnded("\r\n Session closed");
+              onCloseRef.current?.();
               break;
 
             default:
@@ -455,38 +533,39 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       }
     };
     ws.onclose = (evt) => {
-      if (evt.code === 1000) {
-        // Normal closure - user exited session successfully
-        term.writeln(`\r\n\x1b[32m✓ Exec Session successfully closed\x1b[0m`);
-
-        // Don't auto-close the drawer when session closes normally
-        // The user should manually close the tab if they want to
-        // This prevents accidental closure when switching tabs
-      } else {
-        // Use existing error handling logic for other close codes
-        const msg = formatWebSocketError(`close ${evt.code} ${evt.reason}`);
-        term.writeln(`\r\n\x1b[31m✗ Connection closed: ${msg}\x1b[0m`);
-        // Don't auto-close on errors - let user see the error message
-      }
+      markSessionEnded(getSessionEndMessage(evt.code, evt.reason));
     };
     ws.onerror = (evt: any) => {
       const msg = formatWebSocketError(evt.message || "Connection error");
       term.writeln(`\r\n\x1b[31m✗ Connection error: ${msg}\x1b[0m`);
     };
 
+    let lineBuffer = "";
     const inputListener = term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        const msg: Message = {
-          type: MessageTypeStdin,
-          data: new TextEncoder().encode(data),
-          microserviceUuid: sessionRef.current.microserviceUuid,
-          execId: sessionRef.current.execId,
-          timestamp: Date.now(),
-        };
-        const encoded = msgpack.encode(msg);
-        ws.send(encoded);
+      if (sessionEndedRef.current || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const msg: Message = {
+        type: MessageTypeStdin,
+        data: new TextEncoder().encode(data),
+        microserviceUuid: sessionRef.current.microserviceUuid,
+        execId: sessionRef.current.execId,
+        timestamp: Date.now(),
+      };
+      ws.send(msgpack.encode(msg));
+
+      lineBuffer += data;
+      if (isShellExitInput(data, lineBuffer)) {
+        lineBuffer = "";
+        sendExecCloseFrame(ws);
+        return;
+      }
+      if (data.includes("\r") || data.includes("\n")) {
+        lineBuffer = "";
       }
     });
+    inputListenerRef.current = inputListener;
 
     let resizeTimeout: NodeJS.Timeout;
     const handleResize = () => {
@@ -499,31 +578,20 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     window.addEventListener("resize", handleResize);
 
     return () => {
-      inputListener.dispose();
+      inputListenerRef.current?.dispose();
+      inputListenerRef.current = null;
       ro.disconnect();
       window.removeEventListener("resize", handleResize);
-
-      // Stop ping mechanism
       stopPingMechanism();
 
-      // Send close message before closing the connection
-      if (ws.readyState === WebSocket.OPEN) {
-        const closeMsg: Message = {
-          type: MessageTypeClose,
-          data: new Uint8Array(0),
-          microserviceUuid: session.microserviceUuid,
-          execId: session.execId,
-          timestamp: Date.now(),
-        };
-        try {
-          const encoded = msgpack.encode(closeMsg);
-          ws.send(encoded);
-        } catch (error) {
-          console.warn("Failed to send close message:", error);
-        }
+      if (!sessionEndedRef.current && ws.readyState === WebSocket.OPEN) {
+        sendExecCloseFrame(ws);
       }
 
-      ws.close();
+      // Tab unmount only — let server close first after shell exit (avoid 1005 race).
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
       isInitializedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -548,7 +616,11 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
           width: "100%",
           background: "#0d1117",
         }}
-        onClick={() => termRef.current?.focus()}
+        onClick={() => {
+          if (!sessionEndedRef.current) {
+            termRef.current?.focus();
+          }
+        }}
       />
     </div>
   );

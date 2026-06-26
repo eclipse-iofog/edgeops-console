@@ -1,6 +1,6 @@
 {
   "name": "edgeops-console",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "EdgeOps Console — cluster management UI for Eclipse ioFog  and Datasance PoT \\nCopyright (c) 2026 Datasance Teknoloji A.S.",
   "main": "index.js",
   "author": "Emirhan Durmus",

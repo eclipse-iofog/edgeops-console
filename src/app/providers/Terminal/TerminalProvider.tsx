@@ -8,6 +8,8 @@ import React, {
 
 export type TabType = "terminal" | "yaml-editor" | "deploy";
 
+export const MAX_EXEC_SESSIONS_PER_MICROSERVICE = 3;
+
 export interface TerminalSession {
   id: string;
   title: string;
@@ -33,6 +35,7 @@ export interface YamlEditorSession {
   isActive: boolean;
   createdAt: number;
   isDirty: boolean;
+  dedupeKey?: string;
 }
 
 export interface DeploySession {
@@ -105,33 +108,31 @@ export const TerminalProvider: React.FC<TerminalProviderProps> = ({
       let sessionId: string = "";
 
       setSessions((prev) => {
-        // Check if a session with the same microserviceUuid already exists
-        const existingIndex = prev.findIndex(
-          (s) => s.microserviceUuid === sessionData.microserviceUuid,
+        const sameMicroserviceSessions = prev.filter(
+          (s) =>
+            s.microserviceUuid === sessionData.microserviceUuid &&
+            !s.waitingForDebugger,
         );
 
-        if (existingIndex >= 0) {
-          // Session already exists - just switch to it without updating
-          const existingSession = prev[existingIndex];
-          sessionId = existingSession.id;
-          setActiveSessionId(existingSession.id);
-          setIsDrawerOpen(true);
-          return prev; // Return unchanged sessions
-        } else {
-          // Add new session
-          const id = `terminal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const newSession: TerminalSession = {
-            ...sessionData,
-            id,
-            isActive: true,
-            createdAt: Date.now(),
-          };
-
-          sessionId = id;
-          setActiveSessionId(id);
-          setIsDrawerOpen(true);
-          return [...prev, newSession];
+        if (
+          !sessionData.waitingForDebugger &&
+          sameMicroserviceSessions.length >= MAX_EXEC_SESSIONS_PER_MICROSERVICE
+        ) {
+          return prev;
         }
+
+        const id = `terminal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const newSession: TerminalSession = {
+          ...sessionData,
+          id,
+          isActive: true,
+          createdAt: Date.now(),
+        };
+
+        sessionId = id;
+        setActiveSessionId(id);
+        setIsDrawerOpen(true);
+        return [...prev, newSession];
       });
 
       return sessionId;
@@ -149,28 +150,32 @@ export const TerminalProvider: React.FC<TerminalProviderProps> = ({
         createdAt: Date.now(),
       };
 
+      let sessionId = id;
+
       setYamlSessions((prev) => {
-        // Check if a session with the same title already exists
-        const existingIndex = prev.findIndex(
-          (s) => s.title === sessionData.title,
+        const existingIndex = prev.findIndex((s) =>
+          sessionData.dedupeKey
+            ? s.dedupeKey === sessionData.dedupeKey
+            : s.title === sessionData.title,
         );
 
         if (existingIndex >= 0) {
-          // Update existing session
+          const existingSession = prev[existingIndex];
+          sessionId = existingSession.id;
           const updated = [...prev];
           updated[existingIndex] = {
             ...newSession,
+            id: existingSession.id,
           };
           return updated;
-        } else {
-          // Add new session
-          return [...prev, newSession];
         }
+
+        return [...prev, newSession];
       });
 
-      setActiveSessionId(id);
+      setActiveSessionId(sessionId);
       setIsDrawerOpen(true);
-      return id;
+      return sessionId;
     },
     [],
   );

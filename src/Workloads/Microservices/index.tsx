@@ -84,7 +84,7 @@ function MicroservicesList() {
   const [configData, setConfigData] = useState<any>();
   const [editorContent, setEditorContent] = useState<string>("");
   const [showLogConfigModal, setShowLogConfigModal] = useState(false);
-  const { addTerminalSession, addYamlSession } = useTerminal();
+  const { sessions, addTerminalSession, addYamlSession } = useTerminal();
   const { addLogSession } = useLogViewer();
   const auth = useAuth();
 
@@ -411,67 +411,41 @@ function MicroservicesList() {
     refreshFunctions,
   });
 
-  const enableExecAndOpenTerminal = async (microserviceUuid: string) => {
-    try {
-      // Find the microservice to check its exec status
-      const microservice = flattenedMicroservices?.find(
-        (ms: any) => ms.uuid === microserviceUuid,
-      );
+  const openExecTerminal = (microserviceUuid: string) => {
+    const microservice = flattenedMicroservices?.find(
+      (ms: any) => ms.uuid === microserviceUuid,
+    );
 
-      if (!microservice) {
-        pushFeedback?.({ message: "Microservice not found", type: "error" });
-        return;
-      }
+    if (!microservice) {
+      pushFeedback?.({ message: "Microservice not found", type: "error" });
+      return;
+    }
 
-      // Check exec status - only send POST request if status is "inactive"
-      const execStatus = microservice.execStatus?.status?.toLowerCase();
-
-      if (execStatus === "inactive") {
-        const res = await request(
-          `/api/v3/microservices/${microserviceUuid}/exec`,
-          {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        );
-
-        if (!res.ok) {
-          pushFeedback?.({ message: res.message, type: "error" });
-          return;
-        }
-
-        pushFeedback?.({
-          message: `Exec enabled for microservice ${microservice.name}`,
-          type: "success",
-          microserviceName: microservice.name,
-        });
-      } else if (execStatus === "active") {
-        pushFeedback?.({
-          message: "Exec session already active",
-          type: "info",
-        });
-      } else {
-        pushFeedback?.({
-          message: `Exec status: ${microservice.execStatus?.status}`,
-          type: "info",
-        });
-      }
-
-      // Create socket URL
-      const socketUrl = `${getWsBaseUrl()}/api/v3/microservices/exec/${microserviceUuid}`;
-
-      // Add terminal session to global state
-      addTerminalSession({
-        title: `Microservice Shell: ${microservice.name}`,
-        socketUrl,
-        authToken: auth?.user?.access_token,
-        microserviceUuid: microserviceUuid,
-      });
-    } catch (err: any) {
+    if (microservice.status?.status?.toUpperCase() !== "RUNNING") {
       pushFeedback?.({
-        message: err.message || "Exec enable failed",
+        message: "Microservice must be running to open an exec session",
+        type: "error",
+      });
+      return;
+    }
+
+    const existingSessionCount = sessions.filter(
+      (s) => s.microserviceUuid === microserviceUuid && !s.waitingForDebugger,
+    ).length;
+    const tabSuffix =
+      existingSessionCount > 0 ? ` (${existingSessionCount + 1})` : "";
+
+    const socketUrl = `${getWsBaseUrl()}/api/v3/microservices/exec/${microserviceUuid}`;
+    const sessionId = addTerminalSession({
+      title: `Microservice Shell: ${microservice.application}/${microservice.name}${tabSuffix}`,
+      socketUrl,
+      authToken: auth?.user?.access_token,
+      microserviceUuid,
+    });
+
+    if (!sessionId) {
+      pushFeedback?.({
+        message: "Maximum exec sessions reached for this microservice",
         type: "error",
       });
     }
@@ -500,11 +474,11 @@ function MicroservicesList() {
 
       // Add log session
       addLogSession({
-        title: `Logs: ${selectedMs.name}`,
+        title: `Logs: ${selectedMs.application}/${selectedMs.name}`,
         socketUrl,
         authToken: auth?.user?.access_token,
         resourceUuid: selectedMs.uuid,
-        resourceName: selectedMs.name,
+        resourceName: `${selectedMs.application}/${selectedMs.name}`,
         sourceType: "microservice",
         tailConfig: config,
       });
@@ -532,7 +506,8 @@ function MicroservicesList() {
   const handleEditYaml = () => {
     // Add YAML editor session to global state
     addYamlSession({
-      title: `Microservice YAML: ${selectedMs?.name}`,
+      title: `Microservice YAML: ${selectedMs.application}/${selectedMs.name}`,
+      dedupeKey: `microservice:${selectedMs.uuid}`,
       content: yamlDump,
       isDirty: false,
       onSave: async (content: string) => {
@@ -1341,7 +1316,7 @@ function MicroservicesList() {
         onRestart={() => setShowResetConfirmModal(true)}
         onDelete={() => setShowDeleteConfirmModal(true)}
         onEditYaml={handleEditYaml}
-        onTerminal={() => enableExecAndOpenTerminal(selectedMs?.uuid!)}
+        onTerminal={() => openExecTerminal(selectedMs?.uuid!)}
         onLogs={handleOpenLogs}
         onStartStop={() => setShowStartStopConfirmModal(true)}
         startStopValue={selectedMs?.isActivated ? "stop" : ""}
