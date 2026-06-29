@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as msgpack from "@msgpack/msgpack";
 import { Download as DownloadIcon } from "lucide-react";
+import {
+  formatLogBackpressureWarning,
+  formatWebSocketClose,
+} from "@/lib/wsSessionErrors";
 
 type LogViewerProps = {
   socketUrl: string;
@@ -43,6 +47,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
     "connecting" | "connected" | "disconnected" | "error"
   >("connecting");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [warningMessage, setWarningMessage] = useState<string>("");
   const [autoScroll, setAutoScroll] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -72,6 +77,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
     ws.onopen = () => {
       setConnectionStatus("connected");
       setErrorMessage("");
+      setWarningMessage("");
     };
 
     ws.onmessage = (evt) => {
@@ -119,12 +125,15 @@ const LogViewer: React.FC<LogViewerProps> = ({
               setConnectionStatus("disconnected");
               break;
 
-            case MessageTypeLogError:
-              // Error occurred
-              const errorMsg = decoded.message || "Unknown error";
-              setErrorMessage(errorMsg);
-              setConnectionStatus("error");
+            case MessageTypeLogError: {
+              const errorMsg =
+                decoded.message ||
+                (decoded.data
+                  ? new TextDecoder().decode(decoded.data)
+                  : "Unknown error");
+              setWarningMessage(formatLogBackpressureWarning(errorMsg));
               break;
+            }
 
             default:
               console.warn("Unknown log message type:", decoded.type);
@@ -149,12 +158,13 @@ const LogViewer: React.FC<LogViewerProps> = ({
     ws.onclose = (evt) => {
       if (evt.code === 1000) {
         setConnectionStatus("disconnected");
-      } else {
-        setConnectionStatus("error");
-        setErrorMessage(
-          evt.reason || `Connection closed with code ${evt.code}`,
-        );
+        setWarningMessage("");
+        return;
       }
+
+      setConnectionStatus("error");
+      setWarningMessage("");
+      setErrorMessage(formatWebSocketClose(evt.code, evt.reason));
     };
 
     ws.onerror = (evt: any) => {
@@ -341,6 +351,11 @@ const LogViewer: React.FC<LogViewerProps> = ({
             {errorMessage && (
               <div style={{ fontSize: "12px", color: "#ff7b72" }}>
                 {errorMessage}
+              </div>
+            )}
+            {warningMessage && (
+              <div style={{ fontSize: "12px", color: "#f2cc60" }}>
+                {warningMessage}
               </div>
             )}
             <button

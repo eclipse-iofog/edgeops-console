@@ -5,6 +5,11 @@ import "xterm/css/xterm.css";
 import * as msgpack from "@msgpack/msgpack";
 import { useDebuggerStatus } from "@/hooks/useDebuggerStatus";
 import { getWsBaseUrl } from "@/auth/api";
+import {
+  formatWebSocketClose,
+  formatWebSocketErrorString,
+  isNormalExecSessionClose,
+} from "@/lib/wsSessionErrors";
 
 type ExecSessionTerminalProps = {
   socketUrl: string;
@@ -33,115 +38,6 @@ const MessageTypeStderr = 2;
 const MessageTypeControl = 3;
 const MessageTypeClose = 4;
 const MessageTypeActivation = 5;
-
-const errorMessages: Record<string, string> = {
-  "Maximum of 3 concurrent exec sessions allowed for this microservice.":
-    "Maximum exec sessions reached for this microservice.",
-  "Timeout waiting for agent connection":
-    "Agent did not connect — retry.",
-  "Authentication failed":
-    "Authentication failed. Please check your credentials and try again.",
-  "Microservice is not running":
-    "Microservice is not running. Please start the microservice first.",
-  "Insufficient permissions":
-    "Insufficient permissions. Required roles: SRE for Node Exec or Developer for Microservice Exec.",
-  "Only SRE can access system microservices":
-    "Only SRE can access system microservices. Please contact your administrator.",
-};
-
-function formatWebSocketError(err: string) {
-  if (err.includes("close 1008")) {
-    // Try direct string matching first (more reliable)
-    for (const key in errorMessages) {
-      if (err.includes(key)) return errorMessages[key];
-    }
-
-    // Try to extract the reason from the error message
-    const reason = extractCloseReason(err);
-    if (reason) return reason;
-
-    // Default fallback for unknown 1008 errors
-    return "Policy violation: Access denied";
-  }
-
-  if (err.includes("close 1006")) return "Connection lost unexpectedly";
-  if (err.includes("close 1009")) return "Message too large";
-  if (err.includes("close 1011")) return "Server error occurred";
-  if (err.includes("failed to connect")) return "Failed to connect to server";
-  if (err.includes("use of closed network connection"))
-    return "Connection was closed";
-
-  // Handle websocket close errors with reason extraction
-  if (err.includes("websocket: close")) {
-    // Extract the reason part if available
-    const reasonMatch = err.match(/reason:\s*(.+)/);
-    if (reasonMatch) {
-      return reasonMatch[1].trim();
-    }
-
-    // Extract the code and basic message
-    if (err.includes("failed to read message:")) {
-      const parts = err.split("failed to read message:");
-      if (parts.length > 1) {
-        return parts[1].trim();
-      }
-    }
-  }
-
-  return err;
-}
-
-function extractCloseReason(errStr: string): string {
-  // Look for "reason:" pattern
-  const reasonMatch = errStr.match(/reason:\s*(.+?)(?:\.|$)/);
-  if (reasonMatch) {
-    return reasonMatch[1].trim();
-  }
-
-  // Look for "policy violation:" pattern
-  const policyMatch = errStr.match(/policy violation:\s*(.+?)(?:\.|$)/i);
-  if (policyMatch) {
-    return policyMatch[1].trim();
-  }
-
-  // Look for quoted reason at the end
-  if (errStr.includes("close 1008")) {
-    // Try to extract the last quoted string
-    const quotedMatch = errStr.match(/"([^"]+)"/g);
-    if (quotedMatch && quotedMatch.length > 0) {
-      const lastQuoted = quotedMatch[quotedMatch.length - 1].slice(1, -1);
-      if (lastQuoted) return lastQuoted;
-    }
-
-    // Try to extract after "close 1008"
-    const afterCloseMatch = errStr.match(/close 1008\s*\(?([^)]+)\)?/);
-    if (afterCloseMatch) {
-      let afterClose = afterCloseMatch[1].trim();
-
-      // If it starts with a quote, extract the quoted part
-      if (afterClose.startsWith('"')) {
-        const endQuote = afterClose.indexOf('"', 1);
-        if (endQuote > 0) {
-          return afterClose.slice(1, endQuote);
-        }
-      }
-
-      // If it contains a colon, extract after the colon
-      const colonIndex = afterClose.indexOf(":");
-      if (colonIndex > 0) {
-        const reason = afterClose.slice(colonIndex + 1).trim();
-        return reason.endsWith(".") ? reason.slice(0, -1) : reason;
-      }
-
-      // Return the whole thing if it looks like a reason
-      if (afterClose && !afterClose.includes("websocket")) {
-        return afterClose;
-      }
-    }
-  }
-
-  return "";
-}
 
 function isShellExitInput(data: string, lineBuffer: string): boolean {
   if (data.includes("\x04")) {
@@ -420,15 +316,11 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     };
 
     const getSessionEndMessage = (code: number, reason: string) => {
-      const isNormalTeardown =
-        code === 1000 ||
-        (userInitiatedCloseRef.current && code === 1005);
-
-      if (isNormalTeardown) {
+      if (isNormalExecSessionClose(code, userInitiatedCloseRef.current)) {
         return `\r\n\x1b[32m✓ Exec Session successfully closed\x1b[0m`;
       }
 
-      return `\r\n\x1b[31m✗ Connection closed: ${formatWebSocketError(`close ${code} ${reason}`)}\x1b[0m`;
+      return `\r\n\x1b[31m✗ Connection closed: ${formatWebSocketClose(code, reason)}\x1b[0m`;
     };
 
     const markSessionEnded = (message: string) => {
@@ -536,7 +428,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       markSessionEnded(getSessionEndMessage(evt.code, evt.reason));
     };
     ws.onerror = (evt: any) => {
-      const msg = formatWebSocketError(evt.message || "Connection error");
+      const msg = formatWebSocketErrorString(evt.message || "Connection error");
       term.writeln(`\r\n\x1b[31m✗ Connection error: ${msg}\x1b[0m`);
     };
 
