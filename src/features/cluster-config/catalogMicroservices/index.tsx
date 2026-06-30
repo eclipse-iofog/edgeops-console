@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
@@ -24,8 +28,12 @@ const getContainerImageForArch = (
   images?.find((image) => image.archId === archId)?.containerImage ?? "";
 
 function CatalogMicroservices() {
-  const [fetching, setFetching] = React.useState(true);
-  const [catalog, setCatalog] = React.useState([]);
+  const {
+    items: catalog,
+    loading: listLoading,
+  } = useResourceList("catalogMicroservices");
+  const catalogMicroservicesStore = useResourceStore("catalogMicroservices");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -47,32 +55,9 @@ function CatalogMicroservices() {
     }
   };
 
-  async function fetchCatalog() {
-    try {
-      setFetching(true);
-      const catalogItemsResponse = await request(
-        "/api/v3/catalog/microservices",
-      );
-      if (!catalogItemsResponse.ok) {
-        pushFeedback({
-          message: catalogItemsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const catalogItems = (await catalogItemsResponse.json()).catalogItems;
-      setCatalog(catalogItems);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchCatalogItem(catalogId: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const catalogItemResponse = await request(
         `/api/v3/catalog/microservices/${catalogId}`,
       );
@@ -81,16 +66,16 @@ function CatalogMicroservices() {
           message: catalogItemResponse.message,
           type: "error",
         });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const catalogItems = await catalogItemResponse.json();
       setselectedCatalogMicroservice(catalogItems);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -109,20 +94,13 @@ function CatalogMicroservices() {
     }
   };
 
-  useEffect(() => {
-    fetchCatalog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("CatalogItem", async () => {
-      await fetchCatalog();
+      await catalogMicroservicesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [catalogMicroservicesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -225,7 +203,7 @@ function CatalogMicroservices() {
         message: `Catalog ${method === "PATCH" ? "Updated" : "Added"}!`,
         type: "success",
       });
-      fetchCatalog();
+      await catalogMicroservicesStore.fetch({ silent: true });
       setLoading(false);
     } else {
       pushFeedback({ message: response?.message, type: "error" });
@@ -263,12 +241,14 @@ function CatalogMicroservices() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setselectedCatalogMicroservice(null);
-        fetchCatalog();
+        await catalogMicroservicesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -436,7 +416,7 @@ function CatalogMicroservices() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -448,7 +428,7 @@ function CatalogMicroservices() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Catalog Microservices
             </h1>

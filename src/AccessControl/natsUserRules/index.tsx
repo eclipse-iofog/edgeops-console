@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import { ControllerContext, useResourceList, useResourceStore } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { useLocation } from "react-router-dom";
@@ -122,8 +122,11 @@ const getRuleSpec = (rule: any) => {
 };
 
 function NatsUserRules() {
-  const [fetching, setFetching] = React.useState(true);
-  const [rules, setRules] = React.useState<any[]>([]);
+  const {
+    items: rules,
+    loading: listLoading,
+  } = useResourceList("natsUserRules");
+  const natsUserRulesStore = useResourceStore("natsUserRules");
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -151,40 +154,13 @@ function NatsUserRules() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ruleName, rules]);
 
-  async function fetchRules() {
-    try {
-      setFetching(true);
-      const response = await request("/api/v3/nats/user-rules");
-      if (!response?.ok) {
-        pushFeedback({
-          message: response?.message || "Failed to fetch user rules",
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const data = await response.json();
-      setRules(data.rules || []);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchRules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("NatsUserRule", async () => {
-      await fetchRules();
+      await natsUserRulesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [natsUserRulesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -256,7 +232,7 @@ function NatsUserRules() {
           type: "success",
         });
         setIsOpen(false);
-        fetchRules();
+        await natsUserRulesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -290,7 +266,7 @@ function NatsUserRules() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedRule(null);
-        fetchRules();
+        await natsUserRulesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -360,7 +336,7 @@ function NatsUserRules() {
 
   return (
     <>
-      {fetching ? (
+      {listLoading ? (
         <CustomLoadingModal
           open={true}
           message="Fetching NATs User Rules"
@@ -369,7 +345,7 @@ function NatsUserRules() {
           overlayOpacity={60}
         />
       ) : (
-        <div className="bg-gray-900 text-white overflow-auto p-4">
+        <div className="bg-gray-900 text-white p-4">
           <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
             NATs User Rules
           </h1>

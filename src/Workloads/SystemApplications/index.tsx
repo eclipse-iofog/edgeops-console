@@ -550,7 +550,7 @@ function SystemApplicationList() {
   ];
 
   return (
-    <div className=" bg-gray-900 text-white overflow-auto p-4">
+    <div className=" bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
         System Application List
       </h1>

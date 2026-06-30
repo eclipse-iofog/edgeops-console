@@ -216,8 +216,23 @@ const CustomLeaflet: React.FC<CustomLeafletProps> = ({
     const map = useMap();
 
     useEffect(() => {
-      map.invalidateSize();
+      const frame = requestAnimationFrame(() => {
+        map.invalidateSize();
+      });
+      return () => cancelAnimationFrame(frame);
     }, [collapsed, map]);
+
+    useEffect(() => {
+      const container = map.getContainer();
+      const resizeTarget = container.parentElement ?? container;
+
+      const observer = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      observer.observe(resizeTarget);
+
+      return () => observer.disconnect();
+    }, [map]);
 
     return null;
   };

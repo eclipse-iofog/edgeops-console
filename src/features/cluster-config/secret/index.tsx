@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import { ControllerContext, useResourceList, useResourceStore } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import CryptoTextBox from "@/components/ui/CustomCryptoTextBox";
@@ -17,8 +17,12 @@ import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
 
 function Secrets() {
-  const [fetching, setFetching] = React.useState(true);
-  const [secrets, setSecrets] = React.useState([]);
+  const {
+    items: secrets,
+    loading: listLoading,
+  } = useResourceList("secrets");
+  const secretsStore = useResourceStore("secrets");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -46,43 +50,22 @@ function Secrets() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secretName, secrets]);
 
-  async function fetchSecrets() {
-    try {
-      setFetching(true);
-      const secretsItemsResponse = await request("/api/v3/secrets");
-      if (!secretsItemsResponse.ok) {
-        pushFeedback({
-          message: secretsItemsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const secretsItems = (await secretsItemsResponse.json()).secrets;
-      setSecrets(secretsItems);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchSecretItem(secretName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(`/api/v3/secrets/${secretName}`);
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       setselectedSecret(responseItem);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -101,20 +84,13 @@ function Secrets() {
     }
   };
 
-  useEffect(() => {
-    fetchSecrets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("Secret", async () => {
-      await fetchSecrets();
+      await secretsStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [secretsStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -182,7 +158,7 @@ function Secrets() {
           type: "success",
         });
         setIsOpen(false);
-        fetchSecrets();
+        await secretsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -213,7 +189,7 @@ function Secrets() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setselectedSecret(null);
-        fetchSecrets();
+        await secretsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -300,9 +276,11 @@ function Secrets() {
     },
   ];
 
+  const showLoadingModal = listLoading || detailFetching;
+
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -314,7 +292,7 @@ function Secrets() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Secrets
             </h1>

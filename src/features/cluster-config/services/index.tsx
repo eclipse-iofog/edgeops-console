@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import { NavLink, useLocation } from "react-router-dom";
 import SlideOver from "@/components/ui/SlideOver";
@@ -19,8 +23,12 @@ import {
 } from "@/lib/platformReconcile";
 
 function Services() {
-  const [fetching, setFetching] = React.useState(true);
-  const [services, setServices] = React.useState([]);
+  const {
+    items: services,
+    loading: listLoading,
+  } = useResourceList("services");
+  const servicesStore = useResourceStore("services");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -101,43 +109,22 @@ function Services() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceName, services]);
 
-  async function fetchServices() {
-    try {
-      setFetching(true);
-      const servicesItemsResponse = await request("/api/v3/services");
-      if (!servicesItemsResponse.ok) {
-        pushFeedback({
-          message: servicesItemsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const servicesItems = await servicesItemsResponse.json();
-      setServices(servicesItems);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchServicesItem(serviceName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(`/api/v3/services/${serviceName}`);
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       setSelectedService(responseItem);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -174,30 +161,23 @@ function Services() {
         message: "Service reconcile triggered",
         type: "success",
       });
-      fetchServices();
+      await servicesStore.fetch({ silent: true });
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     } finally {
       setReconciling(false);
     }
-  }, [selectedService?.name, request, pushFeedback]);
+  }, [selectedService?.name, request, pushFeedback, servicesStore]);
 
   const provisioningStatus = selectedService?.provisioningStatus;
 
-  useEffect(() => {
-    fetchServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook - initialized after fetchServices is defined
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("Service", async () => {
-      await fetchServices();
+      await servicesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [servicesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -297,7 +277,7 @@ function Services() {
         if (method === "PATCH" && name) {
           await fetchServicesItem(name);
         } else {
-          fetchServices();
+          await servicesStore.fetch({ silent: true });
         }
       }
     } catch (e: any) {
@@ -329,12 +309,14 @@ function Services() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedService(null);
-        fetchServices();
+        await servicesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -506,7 +488,7 @@ function Services() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -518,7 +500,7 @@ function Services() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Services
             </h1>

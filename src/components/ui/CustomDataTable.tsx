@@ -68,7 +68,7 @@ export default function CustomDataTable<T>({
   }, [closeMenuRowKey]);
 
   return (
-    <div className="w-full h-full overflow-auto">
+    <div className="w-full">
       <div className="flex justify-end mb-2">
         <input
           type="text"
@@ -82,7 +82,7 @@ export default function CustomDataTable<T>({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto h-full overflow-auto min-w-0">
+      <div className="overflow-x-auto min-w-0">
         <table className="w-full min-w-max text-sm text-gray-300 table-auto">
           <thead className="bg-gray-700 text-xs uppercase">
             <tr>

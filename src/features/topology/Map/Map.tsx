@@ -84,8 +84,8 @@ const Map: React.FC<CustomLeafletProps> = ({ collapsed }) => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <div className="flex-grow relative">
+    <div className="h-full w-full flex flex-col min-h-0">
+      <div className="relative flex-1 min-h-0">
         <CustomLeaflet
           markers={markers}
           center={mapCenter}

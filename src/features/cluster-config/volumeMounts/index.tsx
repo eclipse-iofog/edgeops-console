@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useMemo } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { NavLink } from "react-router-dom";
@@ -19,8 +23,12 @@ import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/consta
 
 function VolumeMounts() {
   const { data } = useData();
-  const [fetching, setFetching] = React.useState(true);
-  const [volumeMounts, setVolumeMounts] = React.useState<any[]>([]);
+  const {
+    items: volumeMounts,
+    loading: listLoading,
+  } = useResourceList("volumeMounts");
+  const volumeMountsStore = useResourceStore("volumeMounts");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -80,61 +88,13 @@ function VolumeMounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volumeMountName, volumeMounts]);
 
-  async function fetchVolumeMounts() {
-    try {
-      setFetching(true);
-      const volumeMountsItemsResponse = await request("/api/v3/volumeMounts");
-      if (!volumeMountsItemsResponse.ok) {
-        pushFeedback({
-          message: volumeMountsItemsResponse.statusText,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const volumeMountsItems = await volumeMountsItemsResponse.json();
-      setVolumeMounts(
-        Array.isArray(volumeMountsItems) ? volumeMountsItems : [],
-      );
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
-  const handleRefreshVolumeMount = async () => {
-    if (!selectedVolume?.name) return;
-    try {
-      const itemResponse = await request(
-        `/api/v3/volumeMounts/${selectedVolume.name}`,
-      );
-      if (itemResponse.ok) {
-        const responseItem = await itemResponse.json();
-        setselectedVolume(responseItem);
-        // Also refresh linked agents
-        if (responseItem.agents && Array.isArray(responseItem.agents)) {
-          const linkedAgents = responseItem.agents
-            .map((agentUuid: string) => {
-              const agent = data?.reducedAgents?.byUUID[agentUuid];
-              return agent ? { value: agentUuid, label: agent.name } : null;
-            })
-            .filter(Boolean);
-          setLinkedAgentItems(linkedAgents);
-        }
-      }
-    } catch (e) {
-      console.error("Error refreshing volume mount data:", e);
-    }
-  };
-
   async function fetchVolumeMountItem(volumeName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(`/api/v3/volumeMounts/${volumeName}`);
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.statusText, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
@@ -144,7 +104,7 @@ function VolumeMounts() {
       );
       if (!fogUuidsResponse.ok) {
         pushFeedback({ message: fogUuidsResponse.statusText, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const fogUuidsData = await fogUuidsResponse.json();
@@ -164,33 +124,50 @@ function VolumeMounts() {
       setLinkedAgentItems(linkedItems);
 
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
-  useEffect(() => {
-    fetchVolumeMounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("VolumeMount", async () => {
-      await fetchVolumeMounts();
+      await volumeMountsStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [volumeMountsStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
     pushFeedback,
     refreshFunctions,
   });
+
+  const handleRefreshVolumeMount = async () => {
+    if (!selectedVolume?.name) return;
+    try {
+      const itemResponse = await request(
+        `/api/v3/volumeMounts/${selectedVolume.name}`,
+      );
+      if (itemResponse.ok) {
+        const responseItem = await itemResponse.json();
+        setselectedVolume(responseItem);
+        if (responseItem.agents && Array.isArray(responseItem.agents)) {
+          const linkedAgents = responseItem.agents
+            .map((agentUuid: string) => {
+              const agent = data?.reducedAgents?.byUUID[agentUuid];
+              return agent ? { value: agentUuid, label: agent.name } : null;
+            })
+            .filter(Boolean);
+          setLinkedAgentItems(linkedAgents);
+        }
+      }
+    } catch (e) {
+      console.error("Error refreshing volume mount data:", e);
+    }
+  };
 
   const attachVolumeMount = async () => {
     try {
@@ -215,7 +192,7 @@ function VolumeMounts() {
         setShowAttachModal(false);
         setAgentsToAttach([]);
         setIsOpen(false);
-        fetchVolumeMounts();
+        await volumeMountsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -275,7 +252,7 @@ function VolumeMounts() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setselectedVolume(null);
-        fetchVolumeMounts();
+        await volumeMountsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -363,8 +340,7 @@ function VolumeMounts() {
         if (method === "PATCH") {
           setIsOpen(false);
         }
-        // Refresh the list after successful POST or PATCH
-        fetchVolumeMounts();
+        await volumeMountsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -569,9 +545,11 @@ function VolumeMounts() {
     },
   ];
 
+  const showLoadingModal = listLoading || detailFetching;
+
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -583,7 +561,7 @@ function VolumeMounts() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Volume Mount List
             </h1>

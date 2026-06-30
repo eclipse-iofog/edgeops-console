@@ -1,10 +1,20 @@
 import React from "react";
 import { HashRouter, useLocation } from "react-router-dom";
 
-import { useData, useController, useTerminal } from "@/app/providers";
+import {
+  useController,
+  useTerminal,
+  WorkbenchProvider,
+} from "@/app/providers";
+import RuntimePollingBridge from "@/app/providers/RuntimePollingBridge";
+import ResourceStorePollingBridge from "@/app/providers/ResourceStorePollingBridge";
+import WorkbenchPanelStack from "@/app/providers/Workbench/WorkbenchPanelStack";
+import WorkbenchRouteBridge from "@/app/providers/Workbench/WorkbenchRouteBridge";
+import WorkbenchTabBar from "@/app/providers/Workbench/WorkbenchTabBar";
 import { getAuthMode, useAuth } from "@/auth";
 import PostLoginGate from "@/auth/PostLoginGate";
 import AppRoutes from "@/app/routes";
+import { isWorkbenchEligible } from "@/config/navigation";
 import GlobalTerminalDrawer from "@/components/terminal/GlobalTerminalDrawer";
 import AppSidebar from "./AppSidebar";
 import IamExternalBanner from "./IamExternalBanner";
@@ -13,21 +23,24 @@ import {
   SIDEBAR_WIDTH_EXPANDED,
 } from "./sidebarConstants";
 
-function RouteWatcher() {
-  const { refreshData } = useData();
+function MainContent({ collapsed }: { collapsed: boolean }) {
   const location = useLocation();
+  const workbenchEligible = isWorkbenchEligible(location.pathname);
 
-  React.useEffect(() => {
-    if (
-      location.pathname === "/overview" ||
-      location.pathname === "/dashboard"
-    ) {
-      refreshData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  if (!workbenchEligible) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 h-full overflow-auto">
+        <AppRoutes collapsed={collapsed} />
+      </div>
+    );
+  }
 
-  return null;
+  return (
+    <div className="flex flex-col flex-1 min-h-0 h-full">
+      <WorkbenchTabBar />
+      <WorkbenchPanelStack collapsed={collapsed} />
+    </div>
+  );
 }
 
 export default function AppLayout() {
@@ -126,8 +139,11 @@ export default function AppLayout() {
 
   return (
     <HashRouter>
-      <RouteWatcher />
-      <div className="min-h-screen flex flex-col text-gray-900 dark:bg-gray-900 dark:text-white">
+      <WorkbenchProvider>
+        <RuntimePollingBridge />
+        <ResourceStorePollingBridge />
+        <WorkbenchRouteBridge />
+        <div className="min-h-screen flex flex-col text-gray-900 dark:bg-gray-900 dark:text-white">
         <div className="flex">
           <AppSidebar
             sidebarRef={sidebarRef}
@@ -146,7 +162,7 @@ export default function AppLayout() {
           />
 
           <div
-            className="flex-1 px-5 pt-6 overflow-auto bg-gray-900 overflow-auto"
+            className="flex flex-col flex-1 min-h-0 px-5 pt-6 bg-gray-900 overflow-hidden"
             style={{
               height: isDrawerOpen
                 ? "calc(100vh - var(--terminal-drawer-height, 40px))"
@@ -158,7 +174,9 @@ export default function AppLayout() {
           >
             <IamExternalBanner />
             <PostLoginGate>
-              <AppRoutes collapsed={collapsed} />
+              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <MainContent collapsed={collapsed} />
+              </div>
             </PostLoginGate>
           </div>
         </div>
@@ -169,7 +187,8 @@ export default function AppLayout() {
             (collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED)
           }
         />
-      </div>
+        </div>
+      </WorkbenchProvider>
     </HashRouter>
   );
 }

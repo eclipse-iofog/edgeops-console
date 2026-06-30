@@ -19,6 +19,15 @@ import {
 
 import { getApiV3BaseUrl } from "@/auth/api";
 import { LOGO_ALT_TEXT, sidebarLogomark, DOCS_URL, GITHUB_URL, LICENSE_URL } from "@/config/distribution";
+import { getRouteTitle,
+  getSidebarGroupPaths,
+  SIDEBAR_ACCOUNT_STANDALONE_PATH,
+  SIDEBAR_BOTTOM_PATHS,
+  SIDEBAR_NAV_GROUPS,
+  SIDEBAR_TOP_PATHS,
+  type SidebarNavGroupDef,
+} from "@/config/navigation";
+import { useWorkbench } from "@/app/providers";
 import SidebarNavButton from "./SidebarNavButton";
 import SidebarNavGroup from "./SidebarNavGroup";
 import SidebarNavItem from "./SidebarNavItem";
@@ -43,6 +52,40 @@ type AppSidebarProps = {
   accessToken?: string;
 };
 
+const SIDEBAR_GROUP_ICONS: Record<
+  SidebarNavGroupDef["id"],
+  React.ReactNode
+> = {
+  nodes: <StorageRounded size={18} />,
+  workloads: <LayersRounded size={18} />,
+  config: <MiscellaneousServicesIcon size={18} />,
+  network: <Hub size={18} />,
+  messagebus: <MessageBusIcon size={18} />,
+  "access-control": <AccessControlIcon size={18} />,
+  iam: <UsersIcon size={18} />,
+};
+
+const SIDEBAR_STANDALONE_ICONS: Partial<Record<string, React.ReactNode>> = {
+  "/dashboard": <DashboardIcon size={18} />,
+  "/events": <EventIcon size={18} />,
+  "/config/pollingSettings": <TuneIcon size={18} />,
+  [SIDEBAR_ACCOUNT_STANDALONE_PATH]: <UserCircleIcon size={18} />,
+};
+
+function shouldRenderSidebarGroup(
+  group: SidebarNavGroupDef,
+  isNatsEnabled: boolean,
+  isEmbeddedAuth: boolean,
+): boolean {
+  if (group.requiresNats && !isNatsEnabled) {
+    return false;
+  }
+  if (group.requiresEmbeddedAuth && !isEmbeddedAuth) {
+    return false;
+  }
+  return true;
+}
+
 export default function AppSidebar({
   sidebarRef,
   collapsed,
@@ -58,6 +101,17 @@ export default function AppSidebar({
   consoleVersion,
   accessToken,
 }: AppSidebarProps) {
+  const { openTab, getActiveTab } = useWorkbench();
+  const activePath = getActiveTab()?.path ?? null;
+
+  const handleNavigate = (path: string, options?: { pinned?: boolean }) => {
+    openTab({
+      path,
+      title: getRouteTitle(path),
+      pinned: options?.pinned,
+    });
+  };
+
   return (
     <aside
       ref={sidebarRef}
@@ -72,7 +126,14 @@ export default function AppSidebar({
       onMouseLeave={onMouseLeave}
     >
       <div className="flex justify-center py-4">
-        <NavLink to="/dashboard" onClick={onReturnHome}>
+        <NavLink
+          to="/dashboard"
+          onClick={(event) => {
+            event.preventDefault();
+            onReturnHome();
+            handleNavigate("/dashboard");
+          }}
+        >
           <img src={sidebarLogomark} className="w-7 mt-2" alt={LOGO_ALT_TEXT} />
         </NavLink>
       </div>
@@ -82,230 +143,68 @@ export default function AppSidebar({
         className="sidebar-nav-scroll flex-1 overflow-y-auto overflow-x-hidden border-t border-gray-500 px-2 py-2"
       >
         <div className="flex flex-col gap-0.5">
-          <SidebarNavItem
-            to="/dashboard"
-            icon={<DashboardIcon size={18} />}
-            end
-            collapsed={collapsed}
-          >
-            Overview
-          </SidebarNavItem>
-
-          <SidebarNavGroup
-            label="Nodes"
-            icon={<StorageRounded size={18} />}
-            collapsed={collapsed}
-            paths={["/nodes/list", "/nodes/Map"]}
-          >
-            <SidebarNavItem to="/nodes/list" collapsed={collapsed}>
-              List
-            </SidebarNavItem>
-            <SidebarNavItem to="/nodes/Map" collapsed={collapsed}>
-              Map
-            </SidebarNavItem>
-          </SidebarNavGroup>
-
-          <SidebarNavGroup
-            label="Workloads"
-            icon={<LayersRounded size={18} />}
-            collapsed={collapsed}
-            paths={[
-              "/Workloads/MicroservicesList",
-              "/Workloads/SystemMicroservicesList",
-              "/Workloads/ApplicationList",
-              "/Workloads/SystemApplicationList",
-            ]}
-          >
+          {SIDEBAR_TOP_PATHS.map((path) => (
             <SidebarNavItem
-              to="/Workloads/MicroservicesList"
+              key={path}
+              to={path}
+              icon={SIDEBAR_STANDALONE_ICONS[path]}
+              end={path === "/dashboard"}
               collapsed={collapsed}
+              activePath={activePath}
+              onNavigate={handleNavigate}
             >
-              Microservices
+              {getRouteTitle(path)}
             </SidebarNavItem>
-            <SidebarNavItem
-              to="/Workloads/SystemMicroservicesList"
-              collapsed={collapsed}
-            >
-              System Microservices
-            </SidebarNavItem>
-            <SidebarNavItem
-              to="/Workloads/ApplicationList"
-              collapsed={collapsed}
-            >
-              Application
-            </SidebarNavItem>
-            <SidebarNavItem
-              to="/Workloads/SystemApplicationList"
-              collapsed={collapsed}
-            >
-              System Application
-            </SidebarNavItem>
-          </SidebarNavGroup>
+          ))}
 
-          <SidebarNavGroup
-            label="Config"
-            icon={<MiscellaneousServicesIcon size={18} />}
-            collapsed={collapsed}
-            paths={[
-              "/config/AppTemplates",
-              "/config/CatalogMicroservices",
-              "/config/Registries",
-              "/config/ConfigMaps",
-              "/config/secret",
-              "/config/VolumeMounts",
-              "/config/certificates",
-            ]}
-          >
-            <SidebarNavItem to="/config/AppTemplates" collapsed={collapsed}>
-              App Templates
-            </SidebarNavItem>
-            <SidebarNavItem
-              to="/config/CatalogMicroservices"
-              collapsed={collapsed}
-            >
-              Catalog Microservices
-            </SidebarNavItem>
-            <SidebarNavItem to="/config/Registries" collapsed={collapsed}>
-              Registries
-            </SidebarNavItem>
-            <SidebarNavItem to="/config/ConfigMaps" collapsed={collapsed}>
-              Config Maps
-            </SidebarNavItem>
-            <SidebarNavItem to="/config/secret" collapsed={collapsed}>
-              Secrets
-            </SidebarNavItem>
-            <SidebarNavItem to="/config/VolumeMounts" collapsed={collapsed}>
-              Volume Mounts
-            </SidebarNavItem>
-            <SidebarNavItem to="/config/certificates" collapsed={collapsed}>
-              Certificates
-            </SidebarNavItem>
-          </SidebarNavGroup>
-
-          <SidebarNavGroup
-            label="Network"
-            icon={<Hub size={18} />}
-            collapsed={collapsed}
-            paths={["/config/services"]}
-          >
-            <SidebarNavItem to="/config/services" collapsed={collapsed}>
-              Services
-            </SidebarNavItem>
-          </SidebarNavGroup>
-
-          {isNatsEnabled ? (
+          {SIDEBAR_NAV_GROUPS.filter((group) =>
+            shouldRenderSidebarGroup(group, isNatsEnabled, isEmbeddedAuth),
+          ).map((group) => (
             <SidebarNavGroup
-              label="MessageBus"
-              icon={<MessageBusIcon size={18} />}
+              key={group.id}
+              label={group.label}
+              icon={SIDEBAR_GROUP_ICONS[group.id]}
               collapsed={collapsed}
-              paths={[
-                "/messagebus/operators",
-                "/messagebus/accounts",
-                "/messagebus/users",
-              ]}
+              paths={getSidebarGroupPaths(group)}
             >
-              <SidebarNavItem
-                to="/messagebus/operators"
-                collapsed={collapsed}
-              >
-                Operators
-              </SidebarNavItem>
-              <SidebarNavItem to="/messagebus/accounts" collapsed={collapsed}>
-                Accounts
-              </SidebarNavItem>
-              <SidebarNavItem to="/messagebus/users" collapsed={collapsed}>
-                Users
-              </SidebarNavItem>
+              {group.childPaths.map((path) => (
+                <SidebarNavItem
+                  key={path}
+                  to={path}
+                  collapsed={collapsed}
+                  activePath={activePath}
+                  onNavigate={handleNavigate}
+                >
+                  {getRouteTitle(path)}
+                </SidebarNavItem>
+              ))}
             </SidebarNavGroup>
+          ))}
+
+          {!isEmbeddedAuth ? (
+            <SidebarNavItem
+              to={SIDEBAR_ACCOUNT_STANDALONE_PATH}
+              icon={SIDEBAR_STANDALONE_ICONS[SIDEBAR_ACCOUNT_STANDALONE_PATH]}
+              collapsed={collapsed}
+              activePath={activePath}
+              onNavigate={handleNavigate}
+            >
+              {getRouteTitle(SIDEBAR_ACCOUNT_STANDALONE_PATH)}
+            </SidebarNavItem>
           ) : null}
 
-          <SidebarNavGroup
-            label="Access Control"
-            icon={<AccessControlIcon size={18} />}
-            collapsed={collapsed}
-            paths={[
-              "/access-control/roles",
-              "/access-control/rolebindings",
-              "/access-control/serviceaccounts",
-              "/access-control/nats-account-rules",
-              "/access-control/nats-user-rules",
-            ]}
-          >
-            <SidebarNavItem to="/access-control/roles" collapsed={collapsed}>
-              Roles
-            </SidebarNavItem>
+          {SIDEBAR_BOTTOM_PATHS.map((path) => (
             <SidebarNavItem
-              to="/access-control/rolebindings"
+              key={path}
+              to={path}
+              icon={SIDEBAR_STANDALONE_ICONS[path]}
               collapsed={collapsed}
+              activePath={activePath}
+              onNavigate={handleNavigate}
             >
-              Role Bindings
+              {getRouteTitle(path)}
             </SidebarNavItem>
-            <SidebarNavItem
-              to="/access-control/serviceaccounts"
-              collapsed={collapsed}
-            >
-              Service Accounts
-            </SidebarNavItem>
-            <SidebarNavItem
-              to="/access-control/nats-account-rules"
-              collapsed={collapsed}
-            >
-              NATs Account Rules
-            </SidebarNavItem>
-            <SidebarNavItem
-              to="/access-control/nats-user-rules"
-              collapsed={collapsed}
-            >
-              NATs User Rules
-            </SidebarNavItem>
-          </SidebarNavGroup>
-
-          {isEmbeddedAuth ? (
-            <SidebarNavGroup
-              label="IAM"
-              icon={<UsersIcon size={18} />}
-              collapsed={collapsed}
-              paths={[
-                "/account",
-                "/access-control/users",
-                "/access-control/groups",
-              ]}
-            >
-              <SidebarNavItem to="/account" collapsed={collapsed}>
-                My Account
-              </SidebarNavItem>
-              <SidebarNavItem to="/access-control/users" collapsed={collapsed}>
-                Users
-              </SidebarNavItem>
-              <SidebarNavItem to="/access-control/groups" collapsed={collapsed}>
-                Groups
-              </SidebarNavItem>
-            </SidebarNavGroup>
-          ) : (
-            <SidebarNavItem
-              to="/account"
-              icon={<UserCircleIcon size={18} />}
-              collapsed={collapsed}
-            >
-              My Account
-            </SidebarNavItem>
-          )}
-
-          <SidebarNavItem
-            to="/events"
-            icon={<EventIcon size={18} />}
-            collapsed={collapsed}
-          >
-            Events
-          </SidebarNavItem>
-
-          <SidebarNavItem
-            to="/config/pollingSettings"
-            icon={<TuneIcon size={18} />}
-            collapsed={collapsed}
-          >
-            Console Config
-          </SidebarNavItem>
+          ))}
 
           <SidebarNavButton
             icon={<ExitToAppIcon size={18} />}

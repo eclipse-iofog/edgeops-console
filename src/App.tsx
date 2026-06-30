@@ -15,6 +15,7 @@ import {
   LogViewerProvider,
   FeedbackProvider,
   PollingConfigProvider,
+  ResourceStoreProvider,
 } from "@/app/providers";
 import AppLayout from "@/components/layout/AppLayout";
 import "./App.scss";
@@ -88,13 +89,15 @@ function AppShell() {
           <FeedbackProvider>
             <ControllerProvider>
               <PollingConfigProvider>
-                <DataProvider>
-                  <TerminalProvider>
-                    <LogViewerProvider>
-                      <AppLayout />
-                    </LogViewerProvider>
-                  </TerminalProvider>
-                </DataProvider>
+                <ResourceStoreProvider>
+                  <DataProvider>
+                    <TerminalProvider>
+                      <LogViewerProvider>
+                        <AppLayout />
+                      </LogViewerProvider>
+                    </TerminalProvider>
+                  </DataProvider>
+                </ResourceStoreProvider>
               </PollingConfigProvider>
             </ControllerProvider>
           </FeedbackProvider>

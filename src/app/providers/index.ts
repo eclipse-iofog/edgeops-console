@@ -39,3 +39,22 @@ export {
   FeedbackContext,
   useFeedback,
 } from "./feedback";
+
+export {
+  WorkbenchProvider,
+  type WorkbenchContextValue,
+} from "./Workbench/WorkbenchProvider";
+
+export { useWorkbench } from "./Workbench/useWorkbench";
+
+export type { WorkbenchTab, OpenTabParams } from "./Workbench/workbenchTypes";
+
+export {
+  ResourceStoreProvider,
+  useResourceStoreContext,
+} from "./ResourceStoreProvider";
+
+export {
+  useResourceList,
+  useResourceStore,
+} from "@/lib/resourceStore/useResourceList";

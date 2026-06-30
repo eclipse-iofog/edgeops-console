@@ -5952,11 +5952,16 @@ paths:
       tags:
         - NATS
       summary: Gets NATS creds for specific account user
+      description: |
+        Returns base64-encoded `.creds` file content for the user.
+
+        Path `{appName}` is an **application name** for app-linked accounts, or a **NATS account name** for platform/system accounts (`SYS`, leaf accounts, **`controller`**).
       operationId: getNatsUserCreds
       parameters:
         - in: path
           name: appName
           required: true
+          description: Application name or NATS account name (e.g. `SYS`, `controller`)
           schema:
             type: string
         - in: path
@@ -6480,7 +6485,7 @@ components:
           - { name: STDERR, value: 2, direction: agent → user }
           - { name: CONTROL, value: 3, direction: both }
           - { name: CLOSE, value: 4, direction: both }
-          - { name: ACTIVATION, value: 5, direction: controller → agent }
+          - { name: ACTIVATION, value: 5, direction: controller → user (session announce); controller → agent (optional, shell live) }
     WsLogMessageTypes:
       type: object
       description: MessagePack frame types for log sessions (R82)

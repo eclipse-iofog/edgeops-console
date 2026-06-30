@@ -3,21 +3,27 @@ import { usePollingConfig } from "@/app/providers";
 import { useFeedback } from "@/app/providers";
 
 function PollingSettings() {
-  const { mainPollingInterval, slideoverPollingInterval, updatePollingConfig } =
-    usePollingConfig();
+  const {
+    mainPollingInterval,
+    slideoverPollingInterval,
+    listPollingInterval,
+    updatePollingConfig,
+  } = usePollingConfig();
   const { pushFeedback } = useFeedback();
 
   const [mainInterval, setMainInterval] = useState(mainPollingInterval);
   const [slideoverInterval, setSlideoverInterval] = useState(
     slideoverPollingInterval,
   );
+  const [listInterval, setListInterval] = useState(listPollingInterval);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     setMainInterval(mainPollingInterval);
     setSlideoverInterval(slideoverPollingInterval);
+    setListInterval(listPollingInterval);
     setHasChanges(false);
-  }, [mainPollingInterval, slideoverPollingInterval]);
+  }, [mainPollingInterval, slideoverPollingInterval, listPollingInterval]);
 
   const validateInterval = (value: number): boolean => {
     return value >= 1000 && value <= 60000;
@@ -41,6 +47,14 @@ function PollingSettings() {
     }
   };
 
+  const handleListIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value, 10);
+    if (!isNaN(value)) {
+      setListInterval(value);
+      setHasChanges(true);
+    }
+  };
+
   const handleSave = () => {
     if (!validateInterval(mainInterval)) {
       pushFeedback({
@@ -59,9 +73,18 @@ function PollingSettings() {
       return;
     }
 
+    if (!validateInterval(listInterval)) {
+      pushFeedback({
+        message: "List polling interval must be between 1000ms and 60000ms",
+        type: "error",
+      });
+      return;
+    }
+
     updatePollingConfig({
       mainPollingInterval: mainInterval,
       slideoverPollingInterval: slideoverInterval,
+      listPollingInterval: listInterval,
     });
 
     pushFeedback({
@@ -74,11 +97,12 @@ function PollingSettings() {
   const handleReset = () => {
     setMainInterval(mainPollingInterval);
     setSlideoverInterval(slideoverPollingInterval);
+    setListInterval(listPollingInterval);
     setHasChanges(false);
   };
 
   return (
-    <div className="bg-gray-900 text-white overflow-auto p-4">
+    <div className="bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
         Polling Settings
       </h1>
@@ -119,6 +143,33 @@ function PollingSettings() {
               <p className="text-xs text-gray-500 mt-1">
                 Range: 1000ms - 60000ms (Current: {mainInterval}ms ={" "}
                 {(mainInterval / 1000).toFixed(1)}s)
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="list-interval"
+                className="block text-sm font-medium text-gray-300 mb-2"
+              >
+                List Polling Interval (ms)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Controls refresh rate for configuration and access-control list
+                pages while their workbench tab is active
+              </p>
+              <input
+                id="list-interval"
+                type="number"
+                min="1000"
+                max="60000"
+                step="1000"
+                value={listInterval}
+                onChange={handleListIntervalChange}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Range: 1000ms - 60000ms (Current: {listInterval}ms ={" "}
+                {(listInterval / 1000).toFixed(1)}s)
               </p>
             </div>
 

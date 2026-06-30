@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { useLocation } from "react-router-dom";
@@ -17,8 +21,12 @@ import { SubjectBadge } from "../utils/badgeHelpers";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
 
 function RoleBindings() {
-  const [fetching, setFetching] = React.useState(true);
-  const [roleBindings, setRoleBindings] = React.useState<any[]>([]);
+  const {
+    items: roleBindings,
+    loading: listLoading,
+  } = useResourceList("roleBindings");
+  const roleBindingsStore = useResourceStore("roleBindings");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -48,49 +56,27 @@ function RoleBindings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleBindingName, roleBindings]);
 
-  async function fetchRoleBindings() {
-    try {
-      setFetching(true);
-      const roleBindingsResponse = await request("/api/v3/rolebindings");
-      if (!roleBindingsResponse.ok) {
-        pushFeedback({
-          message: roleBindingsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const roleBindingsData = (await roleBindingsResponse.json()).bindings;
-      setRoleBindings(roleBindingsData || []);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchRoleBindingItem(roleBindingName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(
         `/api/v3/rolebindings/${roleBindingName}`,
       );
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
-      // Handle nested response structure - merge binding data with root level
       const roleBinding = responseItem.binding
         ? { ...responseItem, ...responseItem.binding }
         : responseItem;
       setSelectedRoleBinding(roleBinding);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -112,20 +98,13 @@ function RoleBindings() {
     }
   };
 
-  useEffect(() => {
-    fetchRoleBindings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("RoleBinding", async () => {
-      await fetchRoleBindings();
+      await roleBindingsStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [roleBindingsStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -194,7 +173,7 @@ function RoleBindings() {
           type: "success",
         });
         setIsOpen(false);
-        fetchRoleBindings();
+        await roleBindingsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -228,12 +207,14 @@ function RoleBindings() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedRoleBinding(null);
-        fetchRoleBindings();
+        await roleBindingsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -324,7 +305,7 @@ function RoleBindings() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -336,7 +317,7 @@ function RoleBindings() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Role Bindings
             </h1>

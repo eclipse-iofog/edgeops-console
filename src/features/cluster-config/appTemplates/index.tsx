@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import lget from "lodash/get";
 import yaml from "js-yaml";
@@ -24,11 +28,19 @@ import {
 import { appendImageToYamlAcc } from "@/lib/imageArchYAML";
 
 function AppTemplates() {
-  const [fetching, setFetching] = React.useState(true);
+  const {
+    items: rawCatalog,
+    loading: listLoading,
+  } = useResourceList("applicationTemplates");
+  const applicationTemplatesStore = useResourceStore("applicationTemplates");
+  const [detailFetching, setDetailFetching] = useState(false);
   const [loading, setLoading] = React.useState(false);
   const [loadingMessage, setLoadingMessage] =
     React.useState("Catalog Adding...");
-  const [catalog, setCatalog] = React.useState([]);
+  const catalog = useMemo(
+    () => rawCatalog.map((item: any) => mapApplicationTemplate(item)),
+    [rawCatalog],
+  );
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
@@ -38,33 +50,6 @@ function AppTemplates() {
   const [selectedApplicationTemplate, setSelectedApplicationTemplate] =
     useState<any | null>(null);
   const { addYamlSession, addDeploySession } = useTerminal();
-
-  useEffect(() => {
-    fetchCatalog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
-  const refreshFunctions = React.useMemo(() => {
-    const map = new Map();
-    map.set("ApplicationTemplate", async () => {
-      await fetchCatalog();
-    });
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
-    request,
-    pushFeedback,
-    refreshFunctions,
-  });
-
-  const handleRowClick = (row: any) => {
-    if (row.name) {
-      fetchCatalogItem(row.name);
-    }
-  };
 
   function mapApplicationTemplate(item: any) {
     return {
@@ -78,33 +63,29 @@ function AppTemplates() {
     };
   }
 
-  async function fetchCatalog() {
-    try {
-      setFetching(true);
-      const catalogItemsResponse = await request(
-        "/api/v3/applicationTemplates",
-      );
-      if (!catalogItemsResponse.ok) {
-        pushFeedback({
-          message: catalogItemsResponse.statusText,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const catalogItems = (await catalogItemsResponse.json())
-        .applicationTemplates;
-      setCatalog(catalogItems.map((item: any) => mapApplicationTemplate(item)));
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+  const refreshFunctions = React.useMemo(() => {
+    const map = new Map();
+    map.set("ApplicationTemplate", async () => {
+      await applicationTemplatesStore.fetch({ silent: true });
+    });
+    return map;
+  }, [applicationTemplatesStore]);
+
+  const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
+    request,
+    pushFeedback,
+    refreshFunctions,
+  });
+
+  const handleRowClick = (row: any) => {
+    if (row.name) {
+      fetchCatalogItem(row.name);
     }
-  }
+  };
 
   async function fetchCatalogItem(apptemplateName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const catalogItemResponse = await request(
         `/api/v3/applicationTemplate/${apptemplateName}`,
       );
@@ -113,16 +94,16 @@ function AppTemplates() {
           message: catalogItemResponse.statusText,
           type: "error",
         });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const catalogItems = await catalogItemResponse.json();
       setSelectedApplicationTemplate(catalogItems);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -151,13 +132,13 @@ function AppTemplates() {
       if (!res.ok) {
         pushFeedback({ message: res.message, type: "error" });
       } else {
-        setCatalog(catalog.filter((i: any) => i.id !== item.id));
         pushFeedback({
           message: "Application template deleted",
           type: "success",
         });
         setShowDeleteConfirmModal(false);
         setselectedItem(null);
+        await applicationTemplatesStore.fetch({ silent: true });
       }
       setLoading(false);
     } catch (e: any) {
@@ -557,9 +538,11 @@ function AppTemplates() {
     },
   ];
 
+  const showLoadingModal = listLoading || detailFetching;
+
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -571,7 +554,7 @@ function AppTemplates() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Application Templates
             </h1>

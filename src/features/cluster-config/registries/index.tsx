@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import CryptoTextBox from "@/components/ui/CustomCryptoTextBox";
@@ -14,8 +18,12 @@ import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
 
 function Registries() {
-  const [fetching, setFetching] = React.useState(true);
-  const [registries, setRegistries] = React.useState<any[]>([]);
+  const {
+    items: registries,
+    loading: listLoading,
+  } = useResourceList("registries");
+  const registriesStore = useResourceStore("registries");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,20 +42,20 @@ function Registries() {
 
   async function fetchRegistryItem(id: number | string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(`/api/v3/registries/${id}`);
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       setSelectedRegistry(responseItem);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -66,41 +74,13 @@ function Registries() {
     }
   };
 
-  async function fetchRegistries() {
-    try {
-      setFetching(true);
-      const registriesResponse = await request("/api/v3/registries");
-      if (!registriesResponse.ok) {
-        pushFeedback({
-          message: registriesResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const registries = (await registriesResponse.json()).registries;
-      setRegistries(registries);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchRegistries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("Registry", async () => {
-      await fetchRegistries();
+      await registriesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [registriesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -196,8 +176,7 @@ function Registries() {
         if (method === "PATCH") {
           setIsOpen(false);
         }
-        // Refresh the list after successful POST or PATCH
-        fetchRegistries();
+        await registriesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -228,7 +207,7 @@ function Registries() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedRegistry(null);
-        fetchRegistries();
+        await registriesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -295,9 +274,11 @@ function Registries() {
     },
   ];
 
+  const showLoadingModal = listLoading || detailFetching;
+
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -309,7 +290,7 @@ function Registries() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Registries
             </h1>

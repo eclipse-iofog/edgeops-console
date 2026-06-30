@@ -1,11 +1,15 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import CustomActionModal from "@/components/ui/CustomActionModal";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
 import SlideOver from "@/components/ui/SlideOver";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import { useAuth } from "@/auth";
 import { canEditAuthGroups } from "@/lib/canEditAuthGroups";
@@ -70,8 +74,16 @@ function IdentityGroupsList() {
 
   const canEdit = canEditAuthGroups(user?.profile?.groups);
 
-  const [fetching, setFetching] = useState(true);
-  const [groups, setGroups] = useState<IdentityGroup[]>([]);
+  const {
+    items: rawGroups,
+    loading: listLoading,
+  } = useResourceList("identityGroups");
+  const identityGroupsStore = useResourceStore("identityGroups");
+  const groups = useMemo(
+    () => parseIdentityGroupList(rawGroups),
+    [rawGroups],
+  );
+  const [detailFetching, setDetailFetching] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<IdentityGroup | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -85,68 +97,40 @@ function IdentityGroupsList() {
   const groupNameParam =
     params.get("groupName") ?? params.get("groupId");
 
-  const fetchGroups = useCallback(async () => {
-    try {
-      setFetching(true);
-      const response = await request("/api/v3/groups");
-      if (!response?.ok) {
-        pushFeedback({
-          message: response?.message || "Failed to load groups",
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const payload = await response.json();
-      setGroups(parseIdentityGroupList(payload));
-      setFetching(false);
-    } catch (e: unknown) {
-      pushFeedback({
-        message: e instanceof Error ? e.message : "Failed to load groups",
-        type: "error",
-      });
-      setFetching(false);
-    }
-  }, [pushFeedback, request]);
-
   const fetchGroupItem = useCallback(
     async (groupName: string) => {
       try {
-        setFetching(true);
+        setDetailFetching(true);
         const response = await request(groupApiPath(groupName));
         if (!response?.ok) {
           pushFeedback({
             message: response?.message || "Failed to load group",
             type: "error",
           });
-          setFetching(false);
+          setDetailFetching(false);
           return;
         }
         const payload = await response.json();
         const group = parseIdentityGroup(payload);
         if (!group) {
           pushFeedback({ message: "Unexpected group response", type: "error" });
-          setFetching(false);
+          setDetailFetching(false);
           return;
         }
         setSelectedGroup(group);
         setSystemMfaRequired(group.mfaRequired === true);
         setIsOpen(true);
-        setFetching(false);
+        setDetailFetching(false);
       } catch (e: unknown) {
         pushFeedback({
           message: e instanceof Error ? e.message : "Failed to load group",
           type: "error",
         });
-        setFetching(false);
+        setDetailFetching(false);
       }
     },
     [pushFeedback, request],
   );
-
-  useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
 
   useEffect(() => {
     if (groupNameParam && groups.length > 0) {
@@ -234,7 +218,7 @@ function IdentityGroupsList() {
       });
       setShowCreateModal(false);
       setDraft(emptyDraft());
-      await fetchGroups();
+      await identityGroupsStore.fetch({ silent: true });
     } catch (e: unknown) {
       pushFeedback({
         message: e instanceof Error ? e.message : "Failed to create group",
@@ -279,7 +263,7 @@ function IdentityGroupsList() {
       });
       setShowEditModal(false);
       setIsOpen(false);
-      await fetchGroups();
+      await identityGroupsStore.fetch({ silent: true });
     } catch (e: unknown) {
       pushFeedback({
         message: e instanceof Error ? e.message : "Failed to update group",
@@ -315,7 +299,7 @@ function IdentityGroupsList() {
         message: `MFA policy updated for ${selectedGroup.name}`,
         type: "success",
       });
-      await fetchGroups();
+      await identityGroupsStore.fetch({ silent: true });
       await handleRefreshGroup();
     } catch (e: unknown) {
       pushFeedback({
@@ -359,7 +343,7 @@ function IdentityGroupsList() {
       setShowDeleteModal(false);
       setIsOpen(false);
       setSelectedGroup(null);
-      await fetchGroups();
+      await identityGroupsStore.fetch({ silent: true });
     } catch (e: unknown) {
       pushFeedback({
         message: e instanceof Error ? e.message : "Failed to delete group",
@@ -498,9 +482,11 @@ function IdentityGroupsList() {
     },
   ];
 
+  const showLoadingModal = listLoading || detailFetching;
+
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <CustomLoadingModal
           open
           message="Loading groups"
@@ -510,14 +496,16 @@ function IdentityGroupsList() {
         />
       ) : null}
 
-      <div className="bg-gray-900 text-white overflow-auto p-4">
+      <div className="bg-gray-900 text-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-gray-700 pb-2">
           <h1 className="text-2xl font-bold text-white">Identity Groups</h1>
           <div className="flex gap-2">
             <button
               type="button"
               className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm"
-              onClick={fetchGroups}
+              onClick={() => {
+                void identityGroupsStore.fetch({ silent: true });
+              }}
             >
               Refresh
             </button>

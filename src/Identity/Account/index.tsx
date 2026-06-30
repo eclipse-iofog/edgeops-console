@@ -182,7 +182,7 @@ function IdentityAccountPage() {
   };
 
   return (
-    <div className="bg-gray-900 text-white overflow-auto p-4">
+    <div className="bg-gray-900 text-white p-4">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="border-b border-gray-700 pb-2">
           <h1 className="text-2xl font-bold text-white">My Account</h1>

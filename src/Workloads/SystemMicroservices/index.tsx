@@ -34,6 +34,7 @@ import LogConfigModal, {
 } from "@/components/ui/LogConfigModal";
 import { useAuth } from "../../auth";
 import { getWsBaseUrl } from "../../auth/api";
+import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 
 function SystemMicroserviceList() {
   const { data } = useData();
@@ -431,6 +432,20 @@ function SystemMicroserviceList() {
       setShowVolumeDeleteConfirmModal(true);
     }
   }, [selectedVolume]);
+
+  const refreshFunctions = React.useMemo(() => {
+    const map = new Map();
+    map.set("Microservice", async () => {
+      // Data provider will automatically refresh on next poll cycle
+    });
+    return map;
+  }, []);
+
+  const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
+    request,
+    pushFeedback,
+    refreshFunctions,
+  });
 
   const openExecTerminal = (microserviceUuid: string) => {
     const microservice = flattenedMicroservices?.find(
@@ -1260,7 +1275,7 @@ function SystemMicroserviceList() {
   ];
 
   return (
-    <div className=" bg-gray-900 text-white overflow-auto p-4">
+    <div className=" bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
         System Microservices List
       </h1>
@@ -1268,6 +1283,8 @@ function SystemMicroserviceList() {
         columns={columns}
         data={sortedMicroservices}
         getRowKey={(row: any) => row.uuid}
+        uploadDropzone
+        uploadFunction={processUnifiedYaml}
       />
       <SlideOver
         open={isOpen}

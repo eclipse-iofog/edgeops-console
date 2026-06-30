@@ -52,7 +52,7 @@ const Dashboard = () => {
   ]
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white overflow-auto'>
+    <div className='min-h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white'>
       {/* Header */}
       <div className='bg-gray-800/50 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-10'>
         <div className='w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 3xl:px-20 py-6'>

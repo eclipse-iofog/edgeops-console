@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import { ControllerContext, useResourceList, useResourceStore } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { useLocation } from "react-router-dom";
@@ -146,8 +146,11 @@ const getRuleSpec = (rule: any) => {
 };
 
 function NatsAccountRules() {
-  const [fetching, setFetching] = React.useState(true);
-  const [rules, setRules] = React.useState<any[]>([]);
+  const {
+    items: rules,
+    loading: listLoading,
+  } = useResourceList("natsAccountRules");
+  const natsAccountRulesStore = useResourceStore("natsAccountRules");
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -175,40 +178,13 @@ function NatsAccountRules() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ruleName, rules]);
 
-  async function fetchRules() {
-    try {
-      setFetching(true);
-      const response = await request("/api/v3/nats/account-rules");
-      if (!response?.ok) {
-        pushFeedback({
-          message: response?.message || "Failed to fetch account rules",
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const data = await response.json();
-      setRules(data.rules || []);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchRules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("NatsAccountRule", async () => {
-      await fetchRules();
+      await natsAccountRulesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [natsAccountRulesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -280,7 +256,7 @@ function NatsAccountRules() {
           type: "success",
         });
         setIsOpen(false);
-        fetchRules();
+        await natsAccountRulesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -314,7 +290,7 @@ function NatsAccountRules() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedRule(null);
-        fetchRules();
+        await natsAccountRulesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -384,7 +360,7 @@ function NatsAccountRules() {
 
   return (
     <>
-      {fetching ? (
+      {listLoading ? (
         <CustomLoadingModal
           open={true}
           message="Fetching NATs Account Rules"
@@ -393,7 +369,7 @@ function NatsAccountRules() {
           overlayOpacity={60}
         />
       ) : (
-        <div className="bg-gray-900 text-white overflow-auto p-4">
+        <div className="bg-gray-900 text-white p-4">
           <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
             NATs Account Rules
           </h1>

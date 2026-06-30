@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { format, formatDistanceToNow } from "date-fns";
@@ -16,8 +20,12 @@ import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
 import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 
 function Certificates() {
-  const [fetching, setFetching] = React.useState(true);
-  const [certificates, setCertificates] = React.useState([]);
+  const {
+    items: certificates,
+    loading: listLoading,
+  } = useResourceList("certificates");
+  const certificatesStore = useResourceStore("certificates");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,46 +58,24 @@ function Certificates() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [certificateName, certificates]);
 
-  async function fetchCertificates() {
-    try {
-      setFetching(true);
-      const certificatesItemsResponse = await request("/api/v3/certificates");
-      if (!certificatesItemsResponse.ok) {
-        pushFeedback({
-          message: certificatesItemsResponse.statusText,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const certificatesItems = (await certificatesItemsResponse.json())
-        .certificates;
-      setCertificates(certificatesItems);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchCertificateItem(certificateName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(
         `/api/v3/certificates/${certificateName}`,
       );
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.statusText, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       setSelectedCertificate(responseItem);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -108,23 +94,16 @@ function Certificates() {
     }
   };
 
-  useEffect(() => {
-    fetchCertificates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("Certificate", async () => {
-      await fetchCertificates();
+      await certificatesStore.fetch({ silent: true });
     });
     map.set("CertificateAuthority", async () => {
-      await fetchCertificates();
+      await certificatesStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [certificatesStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -164,12 +143,14 @@ function Certificates() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedCertificate(null);
-        fetchCertificates();
+        await certificatesStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -325,7 +306,7 @@ function Certificates() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -337,7 +318,7 @@ function Certificates() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Certificates
             </h1>

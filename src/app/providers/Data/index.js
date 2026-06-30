@@ -1,13 +1,7 @@
 import React from "react";
 import { useController } from "../ControllerProvider";
 import { find, groupBy, get } from "lodash";
-import useRecursiveTimeout from "../../../hooks/useInterval";
 import { useAuth } from "../../../auth";
-import {
-  usePollingConfig,
-  POLLING_CONFIG_STORAGE_KEY,
-} from "../PollingConfig/PollingConfigProvider";
-
 import AgentManager from "./agent-manager";
 import ApplicationManager from "./application-manager";
 
@@ -33,6 +27,7 @@ const initState = {
 
 export const actions = {
   UPDATE: "UPDATE",
+  LIGHT_UPDATE: "LIGHT_UPDATE",
   SET_AGENT: "SET_AGENT",
 };
 
@@ -134,114 +129,110 @@ const reducer = (state, action) => {
   switch (action.type) {
     case actions.UPDATE:
       return updateData(state, action.data);
+    case actions.LIGHT_UPDATE:
+      return updateData(state, {
+        ...action.data,
+        microservices: state.controller?.microservices ?? [],
+      });
     default:
       return state;
   }
 };
 
 export const DataProvider = ({ children }) => {
-  const { request, refresh } = useController();
+  const { request } = useController();
   const [state, dispatch] = React.useReducer(reducer, initState);
   const [loading, setLoading] = React.useState(true);
-  const { getPollingInterval } = usePollingConfig();
   const [error, setError] = React.useState(false);
   const { isAuthenticated } = useAuth();
 
-  // Get polling interval from config, fallback to controller config or default
-  const [timeout, setTimeout] = React.useState(() => {
+  const refreshData = React.useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    let agents = [];
     try {
-      const configInterval = getPollingInterval();
-      if (configInterval) return configInterval;
+      agents = await AgentManager.listAgents(request)();
     } catch (e) {
-      // Fallback if provider not available
+      setError(e);
+      return;
     }
-    return +refresh || 3000;
-  });
 
-  // Listen for localStorage changes to update polling interval dynamically
+    let applications = [];
+    try {
+      applications =
+        await ApplicationManager.listApplicationsWithMicroservices(request)();
+    } catch (e) {
+      setError(e);
+      return;
+    }
+
+    let systemApplications = [];
+    try {
+      systemApplications =
+        await ApplicationManager.listSystemApplicationsWithMicroservices(
+          request,
+        )();
+    } catch (e) {
+      setError(e);
+      return;
+    }
+
+    const microservices = applications.flatMap(
+      (app) => app.microservices || [],
+    );
+    setError(false);
+    dispatch({
+      type: actions.UPDATE,
+      data: { agents, applications, microservices, systemApplications },
+    });
+    setLoading(false);
+  }, [isAuthenticated, request]);
+
+  const refreshRuntimeLight = React.useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    let agents = [];
+    try {
+      agents = await AgentManager.listAgents(request)();
+    } catch (e) {
+      setError(e);
+      return;
+    }
+
+    let applications = [];
+    try {
+      applications = await ApplicationManager.listApplications(request)();
+    } catch (e) {
+      setError(e);
+      return;
+    }
+
+    let systemApplications = [];
+    try {
+      systemApplications =
+        await ApplicationManager.listSystemApplications(request)();
+    } catch (e) {
+      setError(e);
+      return;
+    }
+
+    setError(false);
+    dispatch({
+      type: actions.LIGHT_UPDATE,
+      data: { agents, applications, systemApplications },
+    });
+    setLoading(false);
+  }, [isAuthenticated, request]);
+
   React.useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === POLLING_CONFIG_STORAGE_KEY && e.newValue) {
-        try {
-          const newConfig = JSON.parse(e.newValue);
-          if (newConfig.mainPollingInterval) {
-            setTimeout(newConfig.mainPollingInterval);
-          }
-        } catch (error) {
-          console.error("Error parsing polling config change:", error);
-        }
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    // Poll for changes (since same-tab localStorage changes don't trigger storage event)
-    const intervalId = setInterval(() => {
-      try {
-        const configInterval = getPollingInterval();
-        if (configInterval && configInterval !== timeout) {
-          setTimeout(configInterval);
-        }
-      } catch (e) {
-        // Fallback if provider not available
-      }
-    }, 1000);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(intervalId);
-    };
-  }, [getPollingInterval, timeout]);
-
-  const update = async () => {
     if (isAuthenticated) {
-      // List fogs
-      let agents = [];
-      try {
-        agents = await AgentManager.listAgents(request)();
-      } catch (e) {
-        setError(e);
-        return;
-      }
-
-      // List applications with microservices (same as AgentManager pattern)
-      let applications = [];
-      try {
-        applications =
-          await ApplicationManager.listApplicationsWithMicroservices(request)();
-      } catch (e) {
-        setError(e);
-        return;
-      }
-
-      let systemApplications = [];
-      try {
-        systemApplications =
-          await ApplicationManager.listSystemApplicationsWithMicroservices(
-            request,
-          )();
-      } catch (e) {
-        setError(e);
-        return;
-      }
-
-      const microservices = applications.flatMap(
-        (app) => app.microservices || [],
-      );
-      if (error) {
-        setError(false);
-      }
-      dispatch({
-        type: actions.UPDATE,
-        data: { agents, applications, microservices, systemApplications },
-      });
-      if (loading) {
-        setLoading(false);
-      }
+      refreshData();
     }
-  };
-
-  useRecursiveTimeout(update, timeout);
+  }, [isAuthenticated, refreshData]);
 
   return (
     <DataContext.Provider
@@ -249,7 +240,8 @@ export const DataProvider = ({ children }) => {
         data: state,
         error,
         loading,
-        refreshData: update,
+        refreshData,
+        refreshRuntimeLight,
         deleteAgent: AgentManager.deleteAgent(request),
         deleteApplication: ApplicationManager.deleteApplication(request),
         toggleApplication: ApplicationManager.toggleApplication(request),

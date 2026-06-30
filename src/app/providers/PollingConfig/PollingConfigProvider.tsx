@@ -4,18 +4,23 @@ import { readStorageWithMigration } from "@/lib/storage/migrateKey";
 export const PollingConfigContext = React.createContext<{
   mainPollingInterval: number;
   slideoverPollingInterval: number;
+  listPollingInterval: number;
   updatePollingConfig: (config: {
     mainPollingInterval?: number;
     slideoverPollingInterval?: number;
+    listPollingInterval?: number;
   }) => void;
   getPollingInterval: () => number;
   getSlideoverInterval: () => number;
+  getListPollingInterval: () => number;
 }>({
   mainPollingInterval: 3000,
   slideoverPollingInterval: 5000,
+  listPollingInterval: 10000,
   updatePollingConfig: () => {},
   getPollingInterval: () => 3000,
   getSlideoverInterval: () => 5000,
+  getListPollingInterval: () => 10000,
 });
 
 export const usePollingConfig = () => React.useContext(PollingConfigContext);
@@ -29,6 +34,7 @@ const getDefaultConfig = () => {
   return {
     mainPollingInterval: controllerRefresh ? +controllerRefresh : 3000,
     slideoverPollingInterval: 2000,
+    listPollingInterval: 10000,
   };
 };
 
@@ -47,6 +53,8 @@ const loadConfigFromStorage = () => {
         slideoverPollingInterval:
           parsed.slideoverPollingInterval ||
           getDefaultConfig().slideoverPollingInterval,
+        listPollingInterval:
+          parsed.listPollingInterval || getDefaultConfig().listPollingInterval,
       };
     }
   } catch (e) {
@@ -75,6 +83,9 @@ export const PollingConfigProvider = ({
             slideoverPollingInterval:
               newConfig.slideoverPollingInterval ||
               getDefaultConfig().slideoverPollingInterval,
+            listPollingInterval:
+              newConfig.listPollingInterval ||
+              getDefaultConfig().listPollingInterval,
           });
         } catch (error) {
           console.error("Error parsing storage change:", error);
@@ -90,6 +101,7 @@ export const PollingConfigProvider = ({
     (newConfig: {
       mainPollingInterval?: number;
       slideoverPollingInterval?: number;
+      listPollingInterval?: number;
     }) => {
       const updated = {
         mainPollingInterval:
@@ -100,6 +112,10 @@ export const PollingConfigProvider = ({
           newConfig.slideoverPollingInterval !== undefined
             ? newConfig.slideoverPollingInterval
             : config.slideoverPollingInterval,
+        listPollingInterval:
+          newConfig.listPollingInterval !== undefined
+            ? newConfig.listPollingInterval
+            : config.listPollingInterval,
       };
 
       try {
@@ -123,14 +139,20 @@ export const PollingConfigProvider = ({
     return config.slideoverPollingInterval;
   }, [config.slideoverPollingInterval]);
 
+  const getListPollingInterval = React.useCallback(() => {
+    return config.listPollingInterval;
+  }, [config.listPollingInterval]);
+
   return (
     <PollingConfigContext.Provider
       value={{
         mainPollingInterval: config.mainPollingInterval,
         slideoverPollingInterval: config.slideoverPollingInterval,
+        listPollingInterval: config.listPollingInterval,
         updatePollingConfig,
         getPollingInterval,
         getSlideoverInterval,
+        getListPollingInterval,
       }}
     >
       {children}

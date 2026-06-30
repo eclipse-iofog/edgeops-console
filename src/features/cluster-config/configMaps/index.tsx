@@ -1,7 +1,11 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import AceEditor from "react-ace";
@@ -26,8 +30,12 @@ import {
 } from "@/lib/constants/constants";
 
 function ConfigMaps() {
-  const [fetching, setFetching] = React.useState(true);
-  const [configMaps, setConfigMaps] = React.useState([]);
+  const {
+    items: configMaps,
+    loading: listLoading,
+  } = useResourceList("configMaps");
+  const configMapsStore = useResourceStore("configMaps");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -62,43 +70,22 @@ function ConfigMaps() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configMapName, configMaps]);
 
-  async function fetchConfigMaps() {
-    try {
-      setFetching(true);
-      const configMapsItemsResponse = await request("/api/v3/configmaps");
-      if (!configMapsItemsResponse.ok) {
-        pushFeedback({
-          message: configMapsItemsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const configMapsItems = (await configMapsItemsResponse.json()).configMaps;
-      setConfigMaps(configMapsItems);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchConfigMapItem(configMapName: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(`/api/v3/configmaps/${configMapName}`);
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       setSelectedConfigMap(responseItem);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -117,20 +104,13 @@ function ConfigMaps() {
     }
   };
 
-  useEffect(() => {
-    fetchConfigMaps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("ConfigMap", async () => {
-      await fetchConfigMaps();
+      await configMapsStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [configMapsStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -214,7 +194,7 @@ function ConfigMaps() {
           type: "success",
         });
         setIsOpen(false);
-        fetchConfigMaps();
+        await configMapsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -418,12 +398,14 @@ function ConfigMaps() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedConfigMap(null);
-        fetchConfigMaps();
+        await configMapsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -587,7 +569,7 @@ function ConfigMaps() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -599,7 +581,7 @@ function ConfigMaps() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Config Maps List
             </h1>

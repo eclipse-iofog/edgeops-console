@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import { ControllerContext } from "@/app/providers";
+import {
+  ControllerContext,
+  useResourceList,
+  useResourceStore,
+} from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { useLocation } from "react-router-dom";
@@ -16,8 +20,12 @@ import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
 
 function ServiceAccounts() {
-  const [fetching, setFetching] = React.useState(true);
-  const [serviceAccounts, setServiceAccounts] = React.useState<any[]>([]);
+  const {
+    items: serviceAccounts,
+    loading: listLoading,
+  } = useResourceList("serviceAccounts");
+  const serviceAccountsStore = useResourceStore("serviceAccounts");
+  const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
   const { pushFeedback } = React.useContext(FeedbackContext);
   const [isOpen, setIsOpen] = useState(false);
@@ -53,47 +61,25 @@ function ServiceAccounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceAccountName, serviceAccounts]);
 
-  async function fetchServiceAccounts() {
-    try {
-      setFetching(true);
-      const serviceAccountsResponse = await request("/api/v3/serviceaccounts");
-      if (!serviceAccountsResponse.ok) {
-        pushFeedback({
-          message: serviceAccountsResponse.message,
-          type: "error",
-        });
-        setFetching(false);
-        return;
-      }
-      const serviceAccountsData = (await serviceAccountsResponse.json())
-        .serviceAccounts;
-      setServiceAccounts(serviceAccountsData || []);
-      setFetching(false);
-    } catch (e: any) {
-      pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
-    }
-  }
-
   async function fetchServiceAccountItem(appName: string, name: string) {
     try {
-      setFetching(true);
+      setDetailFetching(true);
       const itemResponse = await request(
         `/api/v3/serviceaccounts/${appName}/${name}`,
       );
       if (!itemResponse.ok) {
         pushFeedback({ message: itemResponse.message, type: "error" });
-        setFetching(false);
+        setDetailFetching(false);
         return;
       }
       const responseItem = await itemResponse.json();
       const serviceAccount = responseItem.serviceAccount || responseItem;
       setSelectedServiceAccount(serviceAccount);
       setIsOpen(true);
-      setFetching(false);
+      setDetailFetching(false);
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error" });
-      setFetching(false);
+      setDetailFetching(false);
     }
   }
 
@@ -116,20 +102,13 @@ function ServiceAccounts() {
     }
   };
 
-  useEffect(() => {
-    fetchServiceAccounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Unified YAML upload hook
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("ServiceAccount", async () => {
-      await fetchServiceAccounts();
+      await serviceAccountsStore.fetch({ silent: true });
     });
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [serviceAccountsStore]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,
@@ -204,7 +183,7 @@ function ServiceAccounts() {
           type: "success",
         });
         setIsOpen(false);
-        fetchServiceAccounts();
+        await serviceAccountsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
@@ -241,12 +220,14 @@ function ServiceAccounts() {
         setShowDeleteConfirmModal(false);
         setIsOpen(false);
         setSelectedServiceAccount(null);
-        fetchServiceAccounts();
+        await serviceAccountsStore.fetch({ silent: true });
       }
     } catch (e: any) {
       pushFeedback({ message: e.message, type: "error", uuid: "error" });
     }
   };
+
+  const showLoadingModal = listLoading || detailFetching;
 
   const columns = [
     {
@@ -351,7 +332,7 @@ function ServiceAccounts() {
 
   return (
     <>
-      {fetching ? (
+      {showLoadingModal ? (
         <>
           <CustomLoadingModal
             open={true}
@@ -363,7 +344,7 @@ function ServiceAccounts() {
         </>
       ) : (
         <>
-          <div className="bg-gray-900 text-white overflow-auto p-4">
+          <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
               Service Accounts
             </h1>
