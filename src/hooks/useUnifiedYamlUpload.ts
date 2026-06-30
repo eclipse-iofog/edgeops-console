@@ -12,6 +12,7 @@ import {
   ResourceExistenceCache,
 } from "@/lib/resourceExistenceChecker";
 import { sanitizeRolePayload } from "@/lib/yaml/parseRoleYaml";
+import { normalizeCatalogImages } from "@/lib/catalogImages";
 
 export interface UploadResult {
   success: boolean;
@@ -27,6 +28,13 @@ export interface UploadProgress {
     kind: ResourceKind;
     identifier: string;
   };
+}
+
+function getCertificatePatchBlockedMessage(kind: ResourceKind): string {
+  if (kind === "CertificateAuthority") {
+    return "Certificate Authority patching is not allowed. If you would like to update the certificate authority, delete it first and redeploy.";
+  }
+  return "Certificate patching is not allowed. If you would like to update the certificate, delete it first and redeploy.";
 }
 
 export interface UseUnifiedYamlUploadOptions {
@@ -67,21 +75,24 @@ export function useUnifiedYamlUpload({
       let finalBody = parsed;
       let finalMethod = method;
 
-      // Handle Registry - needs special endpoint construction
-      if (kind === "Registry" && exists) {
-        // For Registry PATCH, we need the ID, not the URL
-        // Try to find the ID from cache or fetch it
-        const existingRegistries = await request("/api/v3/registries");
-        if (existingRegistries?.ok) {
-          const data = await existingRegistries.json();
-          const registries = data.registries || [];
-          const existingRegistry = registries.find(
-            (r: any) => r.url === identifier,
-          );
-          if (existingRegistry?.id) {
-            finalEndpoint = `/api/v3/registries/${existingRegistry.id}`;
-          }
+      // Handle Registry - POST when spec.id is empty, PATCH when spec.id is set
+      if (kind === "Registry") {
+        const registryId = parsed.id;
+        const hasId =
+          registryId !== null &&
+          registryId !== undefined &&
+          String(registryId).trim() !== "";
+
+        if (hasId) {
+          finalEndpoint = `/api/v3/registries/${registryId}`;
+          finalMethod = "PATCH";
+        } else {
+          finalEndpoint = `/api/v3/registries`;
+          finalMethod = "POST";
         }
+
+        const { id: _id, ...registryBody } = parsed;
+        finalBody = registryBody;
       }
 
       // Handle Microservice - needs uuid for PATCH
@@ -126,12 +137,37 @@ export function useUnifiedYamlUpload({
         finalMethod = exists ? "PATCH" : "PUT";
       }
 
-      // Handle CatalogItem - uses different endpoint
+      // Handle CatalogItem - POST when name is new, PATCH when name exists in catalog list
       if (kind === "CatalogItem") {
-        finalEndpoint = `/api/v3/catalog/microservices`;
-        // For CatalogItem, we can't easily check existence, so always use POST
-        // The API will handle duplicates
-        finalMethod = "POST";
+        let existingId: string | number | null = null;
+
+        const catalogResponse = await request("/api/v3/catalog/microservices");
+        if (catalogResponse?.ok) {
+          const data = await catalogResponse.json();
+          const catalogItems = data.catalogItems || [];
+          if (Array.isArray(catalogItems)) {
+            const existing = catalogItems.find(
+              (item: { name?: string; id?: string | number }) =>
+                item.name === parsed.name || item.name === identifier,
+            );
+            if (existing?.id != null) {
+              existingId = existing.id;
+            }
+          }
+        }
+
+        finalBody = {
+          ...parsed,
+          images: normalizeCatalogImages(parsed.images),
+        };
+
+        if (existingId != null) {
+          finalEndpoint = `/api/v3/catalog/microservices/${existingId}`;
+          finalMethod = "PATCH";
+        } else {
+          finalEndpoint = `/api/v3/catalog/microservices`;
+          finalMethod = "POST";
+        }
       }
 
       // Handle VolumeMount - clean null values
@@ -206,7 +242,14 @@ export function useUnifiedYamlUpload({
         };
       }
 
-      const action = exists ? "updated" : "created";
+      const action =
+        kind === "Registry" || kind === "CatalogItem"
+          ? finalMethod === "PATCH"
+            ? "updated"
+            : "created"
+          : exists
+            ? "updated"
+            : "created";
       return {
         success: true,
         message: `${kind} ${identifier} ${action} successfully`,
@@ -299,6 +342,35 @@ export function useUnifiedYamlUpload({
             request,
             cache,
           );
+
+          if (
+            (resource.kind === "Certificate" ||
+              resource.kind === "CertificateAuthority") &&
+            exists
+          ) {
+            const message = getCertificatePatchBlockedMessage(resource.kind);
+            results.push({
+              success: false,
+              message,
+              resourceKind: resource.kind,
+              resourceIdentifier: resource.identifier,
+            });
+
+            setProgress({
+              total,
+              processed: i + 1,
+              current: {
+                kind: resource.kind,
+                identifier: resource.identifier,
+              },
+            });
+
+            pushFeedback({
+              message: `${resource.kind} ${resource.identifier}: ${message}`,
+              type: "warning",
+            });
+            continue;
+          }
 
           // Deploy resource
           const result = await deployResource(resource, exists, cache);

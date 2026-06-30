@@ -1,5 +1,6 @@
 import lget from "lodash/get";
 import { mapYamlImagesToArray } from "@/lib/imageArchYAML";
+import { resolveRegistryId } from "./resolveRegistryId";
 
 const parseMicroserviceImages = async (fileImages) => {
   // Support both catalogId and catalogItemId (YAML uses catalogId, but API uses catalogItemId)
@@ -11,15 +12,8 @@ const parseMicroserviceImages = async (fileImages) => {
       catalogItemId: catalogId, // API expects catalogItemId
     };
   }
-  const registryByName = {
-    remote: 1,
-    local: 2,
-  };
   const images = mapYamlImagesToArray(fileImages);
-  const registryId = fileImages.registry
-    ? registryByName[fileImages.registry] ||
-      window.parseInt(fileImages.registry)
-    : 1;
+  const registryId = resolveRegistryId(fileImages.registry);
   return { registryId, catalogItemId: undefined, images };
 };
 

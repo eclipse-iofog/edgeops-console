@@ -28,7 +28,14 @@ export const parseRegistries = async (doc) => {
     return [null, "Invalid YAML format (missing spec.url)"];
   }
 
+  const specId = lget(spec, "id", null);
+  const id =
+    specId === null || specId === undefined || String(specId).trim() === ""
+      ? null
+      : specId;
+
   const apiObject = {
+    id,
     url: url,
     isPublic: !lget(spec, "private", false),
     username: lget(spec, "username", null),

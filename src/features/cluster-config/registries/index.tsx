@@ -130,6 +130,7 @@ function Registries() {
         name: name,
       },
       spec: {
+        id: selectedRegistry?.id,
         url: selectedRegistry?.url,
         private: !selectedRegistry?.isPublic,
         username: selectedRegistry?.username,
@@ -168,14 +169,18 @@ function Registries() {
 
   async function handleYamlUpdate(registries: any, method?: string) {
     try {
+      const { id, ...registryBody } = registries;
+      const patchId =
+        method === "PATCH" ? (id ?? selectedRegistry?.id) : undefined;
+
       const res = await request(
-        `/api/v3/registries${method === "PATCH" && selectedRegistry?.id ? `/${selectedRegistry.id}` : ""}`,
+        `/api/v3/registries${method === "PATCH" && patchId ? `/${patchId}` : ""}`,
         {
           method: method,
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify(registries),
+          body: JSON.stringify(registryBody),
         },
       );
 
@@ -183,7 +188,7 @@ function Registries() {
         pushFeedback({ message: res.message, type: "error" });
       } else {
         const registryName =
-          method === "POST" ? registries.url : selectedRegistry.id || "New";
+          method === "POST" ? registries.url : patchId || "New";
         pushFeedback({
           message: `Registry ${registryName} ${method === "POST" ? "Added" : "Updated"}`,
           type: "success",

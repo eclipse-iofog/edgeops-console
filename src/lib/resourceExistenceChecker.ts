@@ -65,7 +65,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "CatalogItem": {
-        const response = await request("/api/v3/catalog");
+        const response = await request("/api/v3/catalog/microservices");
         if (response?.ok) {
           const data = await response.json();
           const catalogItems = data.catalogItems || data;
@@ -290,7 +290,7 @@ export function getResourceEndpoint(
         ? `/api/v3/volumeMounts/${identifier}`
         : `/api/v3/volumeMounts`;
     case "CatalogItem":
-      return `/api/v3/catalog`;
+      return `/api/v3/catalog/microservices`;
     case "ApplicationTemplate":
       return `/api/v3/catalog/templates`;
     case "Application":
@@ -342,8 +342,6 @@ export function getResourceMethod(
     case "Service":
     case "Secret":
     case "ConfigMap":
-    case "Certificate":
-    case "CertificateAuthority":
     case "Registry":
     case "VolumeMount":
     case "Role":

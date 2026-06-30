@@ -9,6 +9,7 @@ import { useLocation, NavLink } from "react-router-dom";
 import yaml from "js-yaml";
 import { parseCatalogMicroservice } from "@/lib/yaml/parseCatalogMicroservice";
 import { appendImageToYamlAcc } from "@/lib/imageArchYAML";
+import { normalizeCatalogImages } from "@/lib/catalogImages";
 import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 import { useTerminal } from "@/app/providers";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
@@ -21,27 +22,6 @@ const getContainerImageForArch = (
   archId: number,
 ) =>
   images?.find((image) => image.archId === archId)?.containerImage ?? "";
-
-const normalizeCatalogImages = (
-  images: Array<{ archId?: number; containerImage?: string }> | undefined,
-) => {
-  if (!Array.isArray(images)) {
-    return [];
-  }
-
-  return images
-    .filter(
-      (image) =>
-        image?.archId !== undefined &&
-        image.archId >= 1 &&
-        image.archId <= 4 &&
-        image.containerImage,
-    )
-    .map(({ archId, containerImage }) => ({
-      archId: archId as number,
-      containerImage: containerImage as string,
-    }));
-};
 
 function CatalogMicroservices() {
   const [fetching, setFetching] = React.useState(true);

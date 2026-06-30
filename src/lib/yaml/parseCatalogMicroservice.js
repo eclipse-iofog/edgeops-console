@@ -4,6 +4,7 @@ import {
   invalidControllerApiVersionMessage,
 } from "@/lib/constants/constants";
 import { mapYamlImagesToArray } from "@/lib/imageArchYAML";
+import { resolveRegistryId } from "./resolveRegistryId";
 
 export const parseCatalogMicroservice = async (doc) => {
   if (!doc) {
@@ -41,7 +42,7 @@ export const parseCatalogMicroservice = async (doc) => {
     // ramRequired: lget(spec, "ramRequired", 0),
     // picture: lget(spec, "picture", ""),
     // isPublic: lget(spec, "isPublic", false),
-    registryId: lget(spec, "registry", 0),
+    registryId: resolveRegistryId(lget(spec, "registry")),
     // inputType: lget(spec, "inputType", {}),
     // outputType: lget(spec, "outputType", {}),
     configExample: lget(spec, "configExample", ""),
