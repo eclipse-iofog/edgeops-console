@@ -25,7 +25,7 @@ import CryptoTextBox from "@/components/ui/CustomCryptoTextBox";
 import { getTextColor, prettyBytes } from "../../lib/formatting";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { useLocation } from "react-router-dom";
-import { NavLink } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
 import { Pencil as EditOutlinedIcon } from "lucide-react";
 import { useTerminal } from "@/app/providers";
 import { useLogViewer } from "@/app/providers";
@@ -670,12 +670,9 @@ function MicroservicesList() {
         const agent = data.reducedAgents.byUUID[row.iofogUuid];
         if (!agent) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/nodes/list?agentId=${encodeURIComponent(row.iofogUuid)}`}
-            className="text-blue-400 underline cursor-pointer"
-          >
+          <ResourceLink path="/nodes/list" query={{ agentId: row.iofogUuid }}>
             {agent.name}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -684,12 +681,12 @@ function MicroservicesList() {
       render: (row: any) => {
         if (!row?.name) return <span className="text-gray-400">No name</span>;
         return (
-          <NavLink
-            to={`/Workloads/ApplicationList?applicationId=${encodeURIComponent(row.applicationId)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/Workloads/ApplicationList"
+            query={{ applicationId: row.applicationId }}
           >
             {row.application}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -762,12 +759,12 @@ function MicroservicesList() {
       render: (row: any) => {
         if (!row?.registryId) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/registries?registryId=${encodeURIComponent(row.registryId)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/config/Registries"
+            query={{ registryId: row.registryId }}
           >
             {row.registryId}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -777,12 +774,12 @@ function MicroservicesList() {
         if (!row?.catalogItemId)
           return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/CatalogMicroservices?catalogItemid=${encodeURIComponent(row.catalogItemId)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/config/CatalogMicroservices"
+            query={{ catalogItemid: row.catalogItemId }}
           >
             {row.catalogItemId}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },

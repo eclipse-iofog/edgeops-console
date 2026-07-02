@@ -1,6 +1,6 @@
 import React from "react";
 import { formatDistanceToNow, format } from "date-fns";
-import { NavLink } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import {
   formatArchitectureLabel,
@@ -326,12 +326,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/config/VolumeMounts?volumeMountName=${encodeURIComponent(row.name)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/config/VolumeMounts"
+                  query={{ volumeMountName: row.name }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -351,12 +351,12 @@ export const buildAgentSlideOverFields = (
                   <span className="text-gray-400">No config map name</span>
                 );
               return (
-                <NavLink
-                  to={`/config/ConfigMaps?configMapName=${encodeURIComponent(row.configMapName)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/config/ConfigMaps"
+                  query={{ configMapName: row.configMapName }}
                 >
                   {row.configMapName}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -367,12 +367,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.secretName)
                 return <span className="text-gray-400">No secret name</span>;
               return (
-                <NavLink
-                  to={`/config/secret?secretName=${encodeURIComponent(row.secretName)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/config/secret"
+                  query={{ secretName: row.secretName }}
                 >
                   {row.secretName}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -497,12 +497,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/Workloads/ApplicationList?applicationId=${encodeURIComponent(row.id)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/Workloads/ApplicationList"
+                  query={{ applicationId: row.id }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -583,12 +583,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/Workloads/MicroservicesList?microserviceId=${encodeURIComponent(row.key)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/Workloads/MicroservicesList"
+                  query={{ microserviceId: row.key }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -668,12 +668,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/Workloads/SystemApplicationList?applicationId=${encodeURIComponent(row.id)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/Workloads/SystemApplicationList"
+                  query={{ applicationId: row.id }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -760,12 +760,12 @@ export const buildAgentSlideOverFields = (
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/Workloads/SystemMicroservicesList?microserviceId=${encodeURIComponent(row.key)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/Workloads/SystemMicroservicesList"
+                  query={{ microserviceId: row.key }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },

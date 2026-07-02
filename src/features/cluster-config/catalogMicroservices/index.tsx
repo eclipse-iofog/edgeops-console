@@ -9,7 +9,8 @@ import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
-import { useLocation, NavLink } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
 import yaml from "js-yaml";
 import { parseCatalogMicroservice } from "@/lib/yaml/parseCatalogMicroservice";
 import { appendImageToYamlAcc } from "@/lib/imageArchYAML";
@@ -279,12 +280,12 @@ function CatalogMicroservices() {
       render: (row: any) => {
         if (!row?.registryId) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/registries?registryId=${encodeURIComponent(row.registryId)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/config/Registries"
+            query={{ registryId: row.registryId }}
           >
             {row.registryId}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -360,12 +361,12 @@ function CatalogMicroservices() {
       render: (row: any) => {
         if (!row?.registryId) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/registries?registryId=${encodeURIComponent(row.registryId)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/config/Registries"
+            query={{ registryId: row.registryId }}
           >
             {row.registryId}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },

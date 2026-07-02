@@ -7,7 +7,7 @@ import {
 } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
-import { NavLink } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
 import { useLocation } from "react-router-dom";
 import { useData } from "@/app/providers";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
@@ -393,12 +393,9 @@ function VolumeMounts() {
       render: (row: any) => {
         if (!row.secretName) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/secret?secretName=${encodeURIComponent(row.secretName)}`}
-            className="text-blue-400 underline cursor-pointer"
-          >
+          <ResourceLink path="/config/secret" query={{ secretName: row.secretName }}>
             {row.secretName}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -408,12 +405,12 @@ function VolumeMounts() {
         if (!row.configMapName)
           return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/ConfigMaps?configMapName=${encodeURIComponent(row.configMapName)}`}
-            className="text-blue-400 underline cursor-pointer"
+          <ResourceLink
+            path="/config/ConfigMaps"
+            query={{ configMapName: row.configMapName }}
           >
             {row.configMapName}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },
@@ -485,9 +482,10 @@ function VolumeMounts() {
                       key={linkedItem.value}
                       className="p-3 hover:bg-gray-750/50 transition-all duration-200 group"
                     >
-                      <NavLink
-                        to={`/nodes/list?agentId=${encodeURIComponent(linkedItem.value)}`}
-                        className="flex items-center justify-between"
+                      <ResourceLink
+                        path="/nodes/list"
+                        query={{ agentId: linkedItem.value }}
+                        className="flex items-center justify-between w-full"
                       >
                         <div className="flex items-center space-x-3 flex-1">
                           <div
@@ -533,7 +531,7 @@ function VolumeMounts() {
                             />
                           </svg>
                         </div>
-                      </NavLink>
+                      </ResourceLink>
                     </div>
                   );
                 })}

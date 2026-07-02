@@ -6,7 +6,8 @@ import {
   useResourceStore,
 } from "@/app/providers";
 import { FeedbackContext } from "@/app/providers";
-import { NavLink, useLocation } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
+import { useLocation } from "react-router-dom";
 import SlideOver from "@/components/ui/SlideOver";
 import { Copy as FileCopyIcon, Check as CheckIcon } from "lucide-react";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
@@ -394,21 +395,18 @@ function Services() {
 
         if (row.type === "agent") {
           return (
-            <NavLink
-              to={`/nodes/list?agentId=${encodeURIComponent(row.resource)}`}
-              className="text-blue-400 underline cursor-pointer"
-            >
+            <ResourceLink path="/nodes/list" query={{ agentId: row.resource }}>
               {row.resource}
-            </NavLink>
+            </ResourceLink>
           );
         } else if (row.type === "microservice") {
           return (
-            <NavLink
-              to={`/Workloads/MicroservicesList?microserviceId=${encodeURIComponent(row.resource)}`}
-              className="text-blue-400 underline cursor-pointer"
+            <ResourceLink
+              path="/Workloads/MicroservicesList"
+              query={{ microserviceId: row.resource }}
             >
               {row.resource}
-            </NavLink>
+            </ResourceLink>
           );
         } else {
           return <span>{row.resource}</span>;

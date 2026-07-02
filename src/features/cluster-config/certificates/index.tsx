@@ -9,7 +9,8 @@ import { FeedbackContext } from "@/app/providers";
 import SlideOver from "@/components/ui/SlideOver";
 import { format, formatDistanceToNow } from "date-fns";
 import CryptoTextBox from "@/components/ui/CustomCryptoTextBox";
-import { NavLink, useLocation } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
+import { useLocation } from "react-router-dom";
 import CustomLoadingModal from "@/components/ui/CustomLoadingModal";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
 // import {
@@ -197,12 +198,9 @@ function Certificates() {
       render: (row: any) => {
         if (!row.caName) return <span className="text-gray-400">N/A</span>;
         return (
-          <NavLink
-            to={`/config/certificates?name=${encodeURIComponent(row.caName)}`}
-            className="text-blue-400 underline cursor-pointer"
-          >
+          <ResourceLink path="/config/certificates" query={{ name: row.caName }}>
             {row.caName}
-          </NavLink>
+          </ResourceLink>
         );
       },
     },

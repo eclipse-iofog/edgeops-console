@@ -17,7 +17,7 @@ import yaml from "js-yaml";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { getTextColor } from "../../lib/formatting";
 import { useLocation } from "react-router-dom";
-import { NavLink } from "react-router-dom";
+import ResourceLink from "@/components/ui/ResourceLink";
 import { useTerminal } from "@/app/providers";
 import ApplicationManager from "@/app/providers/Data/application-manager";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
@@ -441,12 +441,12 @@ function SystemApplicationList() {
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/Workloads/SystemMicroservicesList?microserviceId=${encodeURIComponent(row.key)}`}
-                  className="text-blue-400 underline cursor-pointer"
+                <ResourceLink
+                  path="/Workloads/SystemMicroservicesList"
+                  query={{ microserviceId: row.key }}
                 >
                   {row.name}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
@@ -464,12 +464,9 @@ function SystemApplicationList() {
               if (!row?.name)
                 return <span className="text-gray-400">No name</span>;
               return (
-                <NavLink
-                  to={`/nodes/list?agentId=${encodeURIComponent(row.agentId)}`}
-                  className="text-blue-400 underline cursor-pointer"
-                >
+                <ResourceLink path="/nodes/list" query={{ agentId: row.agentId }}>
                   {row.agent}
-                </NavLink>
+                </ResourceLink>
               );
             },
           },
