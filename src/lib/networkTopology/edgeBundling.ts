@@ -8,7 +8,28 @@ export type EdgeBundleMeta = {
   bundleCount: number;
 };
 
-function columnMidpoint(fromColumn: number, toColumn: number): number {
+function columnMidpoint(
+  fromColumn: number,
+  toColumn: number,
+  positions?: Map<string, { x: number; y: number }>,
+  group?: TopologyConnection[],
+): number {
+  if (positions && group && group.length > 0) {
+    let sum = 0;
+    let count = 0;
+    for (const connection of group) {
+      const sourceX = positions.get(connection.source)?.x;
+      const destX = positions.get(connection.dest)?.x;
+      if (sourceX !== undefined && destX !== undefined) {
+        sum += (sourceX + destX) / 2;
+        count += 1;
+      }
+    }
+    if (count > 0) {
+      return sum / count;
+    }
+  }
+
   const fromX = SWIMLANE_COLUMN_X[fromColumn] ?? 0;
   const toX = SWIMLANE_COLUMN_X[toColumn] ?? fromX;
   return (fromX + toX) / 2;
@@ -20,6 +41,7 @@ export function computeEdgeBundleMeta(
   hubId: string | null,
   hubTrunkX: number | null,
   nodeColumn: Map<string, number>,
+  positions?: Map<string, { x: number; y: number }>,
 ): Map<number, EdgeBundleMeta> {
   const meta = new Map<number, EdgeBundleMeta>();
   const bySource = new Map<string, TopologyConnection[]>();
@@ -79,7 +101,7 @@ export function computeEdgeBundleMeta(
       continue;
     }
     const [left, right] = pairKey.split("|").map(Number);
-    const trunkX = columnMidpoint(left, right);
+    const trunkX = columnMidpoint(left, right, positions, group);
     for (const connection of group) {
       const existing = meta.get(connection.id) ?? {
         offset: 0,

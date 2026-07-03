@@ -4,8 +4,11 @@ import { DEFAULT_NATS_HUB_ID, DEFAULT_ROUTER_ID } from "./constants";
 import { computeEdgeBundleMeta, computeEdgeBundleOffsets } from "./edgeBundling";
 import { buildGroupedTopologyView } from "./grouping";
 import {
+  computeDefaultSwimlaneLayout,
   computeHierarchicalLayout,
   computeLayout,
+  computeSwimlaneMetrics,
+  SWIMLANE_COLUMN_X,
   getHubId,
 } from "./layout";
 import { mergeLayoutPositions } from "./layoutPositions";
@@ -166,6 +169,46 @@ describe("networkTopology edgeBundling", () => {
       ]),
     );
     expect(meta.get(1)?.useTrunk).toBe(true);
+  });
+});
+
+describe("networkTopology default swimlane layout", () => {
+  it("uses fallback anchors when canvas is unavailable", () => {
+    const metrics = computeSwimlaneMetrics([2, 1, 1]);
+    expect(metrics.columnX).toEqual(SWIMLANE_COLUMN_X);
+  });
+
+  it("places role columns left, center, and right from canvas ratios", () => {
+    const canvas = { width: 1200, height: 800, zoom: 0.5 };
+    const positions = computeDefaultSwimlaneLayout(
+      [hub, interior, edge],
+      connections,
+      "router",
+      canvas,
+    );
+
+    const edgeX = positions.get("edge-1")!.x;
+    const interiorX = positions.get("interior-1")!.x;
+    const hubX = positions.get(DEFAULT_ROUTER_ID)!.x;
+
+    expect(edgeX).toBeLessThan(interiorX);
+    expect(interiorX).toBeLessThan(hubX);
+  });
+
+  it("widens lane spread when zoomed out", () => {
+    const zoomedIn = computeSwimlaneMetrics([2, 1, 1], {
+      width: 1200,
+      height: 800,
+      zoom: 1,
+    });
+    const zoomedOut = computeSwimlaneMetrics([2, 1, 1], {
+      width: 1200,
+      height: 800,
+      zoom: 0.25,
+    });
+    expect(zoomedOut.columnX[2] - zoomedOut.columnX[0]).toBeGreaterThan(
+      zoomedIn.columnX[2] - zoomedIn.columnX[0],
+    );
   });
 });
 

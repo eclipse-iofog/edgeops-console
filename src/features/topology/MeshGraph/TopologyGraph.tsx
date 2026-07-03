@@ -18,7 +18,6 @@ import "@xyflow/react/dist/style.css";
 import {
   getSwimlaneColumnForNode,
   isSpokeGroupNodeId,
-  snapToSwimlaneColumn,
   spokeGroupUpstreamOf,
 } from "@/lib/networkTopology/autoGrouping";
 import { computeEdgeBundleMeta } from "@/lib/networkTopology/edgeBundling";
@@ -29,17 +28,15 @@ import {
   isBidirectionalEdge,
 } from "@/lib/networkTopology/edgeStyles";
 import {
+  computeDefaultSwimlaneLayout,
   computeLayout,
   getHubId,
   getHubTrunkX,
+  type SwimlaneCanvas,
 } from "@/lib/networkTopology/layout";
 import {
   getNodesOnPathEdges,
-  loadSavedPositions,
-  loadSavedViewport,
   mergeLayoutPositions,
-  savePositions,
-  saveViewport,
 } from "@/lib/networkTopology/layoutPositions";
 import { getSemanticZoomLevel } from "@/lib/networkTopology/semanticZoom";
 import type {
@@ -91,12 +88,36 @@ type TopologyGraphProps = {
   allNodes: TopologyNodeBase[];
 };
 
-function positionsStorageKey(layer: TopologyLayer): string {
-  return `mesh-graph-positions-${layer}`;
+function readSwimlaneCanvas(
+  container: HTMLDivElement | null,
+  zoom: number,
+): SwimlaneCanvas | null {
+  if (!container || zoom <= 0) {
+    return null;
+  }
+  const rect = container.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+  return { width: rect.width, height: rect.height, zoom };
 }
 
-function viewportStorageKey(layer: TopologyLayer): string {
-  return `mesh-graph-viewport-${layer}`;
+function resolveNodePositions(input: {
+  nodes: TopologyNodeBase[];
+  mergedPositions: Record<string, { x: number; y: number }>;
+  livePositions?: Map<string, { x: number; y: number }>;
+  fallbackLayout: Map<string, { x: number; y: number }>;
+}): Map<string, { x: number; y: number }> {
+  const { nodes, mergedPositions, livePositions, fallbackLayout } = input;
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const node of nodes) {
+    const position =
+      livePositions?.get(node.id) ??
+      mergedPositions[node.id] ??
+      fallbackLayout.get(node.id) ?? { x: 0, y: 0 };
+    positions.set(node.id, position);
+  }
+  return positions;
 }
 
 function buildNodeColumnMap(
@@ -172,22 +193,25 @@ function buildFlowGraph(input: {
     connections,
     layer,
   );
+  const nodePositions = resolveNodePositions({
+    nodes,
+    mergedPositions,
+    livePositions,
+    fallbackLayout: computedLayout,
+  });
   const hubId = getHubId(layer);
-  const hubTrunkX = getHubTrunkX(hubId, computedLayout);
+  const hubTrunkX = getHubTrunkX(hubId, nodePositions);
   const nodeColumn = buildNodeColumnMap(nodes, layer);
   const bundleMeta = computeEdgeBundleMeta(
     connections,
     hubId,
     hubTrunkX,
     nodeColumn,
+    nodePositions,
   );
 
   const flowNodes: Node[] = nodes.map((node) => {
-    const rawPosition =
-      livePositions?.get(node.id) ??
-      mergedPositions[node.id] ??
-      computedLayout.get(node.id) ?? { x: 0, y: 0 };
-    const position = snapToSwimlaneColumn(node, layer, rawPosition);
+    const position = nodePositions.get(node.id) ?? { x: 0, y: 0 };
     const isSelected = node.id === selectedNodeId;
     const isHovered = node.id === hoveredNodeId;
     const isNeighbor = neighborNodeIds.has(node.id);
@@ -333,38 +357,51 @@ function TopologyGraphInner({
   onPaneClick,
   allNodes,
 }: TopologyGraphProps) {
-  const { fitView, setCenter, setViewport, getViewport } = useReactFlow();
+  const { fitView, setCenter, getViewport } = useReactFlow();
   const nodeLookup = useMemo(() => buildNodeLookup(allNodes), [allNodes]);
-  const nodesById = useMemo(
-    () => new Map(nodes.map((node) => [node.id, node])),
-    [nodes],
-  );
-  const positionsKey = positionsStorageKey(layer);
-  const viewportKey = viewportStorageKey(layer);
-  const savedPositionsRef = useRef(loadSavedPositions(positionsKey));
-  const viewportRestoredRef = useRef(false);
-  const initialFitDoneRef = useRef(false);
+  const savedPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const lastFocusTokenRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const pendingGraphSyncRef = useRef(false);
   const flowNodesRef = useRef<Node[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const initialLayoutDoneRef = useRef(false);
+  const [containerReady, setContainerReady] = useState(false);
+  const [positionsSeed, setPositionsSeed] = useState(0);
   const [zoom, setZoom] = useState(1);
   const zoomLevel = getSemanticZoomLevel(zoom);
 
+  useEffect(() => {
+    savedPositionsRef.current = {};
+    initialLayoutDoneRef.current = false;
+    setPositionsSeed((value) => value + 1);
+  }, [layer]);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateReady = () => {
+      const rect = element.getBoundingClientRect();
+      setContainerReady(rect.width > 0 && rect.height > 0);
+    };
+
+    updateReady();
+    const observer = new ResizeObserver(updateReady);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const mergedPositions = useMemo(() => {
     const computed = computeLayout(LAYOUT_STRATEGY, nodes, connections, layer);
-    const merged = mergeLayoutPositions(
+    return mergeLayoutPositions(
       nodes.map((node) => node.id),
       savedPositionsRef.current,
       computed,
     );
-    const snapped: Record<string, { x: number; y: number }> = {};
-    for (const node of nodes) {
-      const position = merged[node.id] ?? computed.get(node.id) ?? { x: 0, y: 0 };
-      snapped[node.id] = snapToSwimlaneColumn(node, layer, position);
-    }
-    return snapped;
-  }, [nodes, connections, layer]);
+  }, [nodes, connections, layer, positionsSeed]);
 
   const graphInput = useMemo(
     () => ({
@@ -436,6 +473,63 @@ function TopologyGraphInner({
     setFlowEdges(graph.flowEdges);
   }, [graphInput, setFlowNodes, setFlowEdges]);
 
+  const applyDefaultLayout = useCallback(
+    (options?: { fitView?: boolean }) => {
+      const canvas = readSwimlaneCanvas(
+        containerRef.current,
+        getViewport().zoom,
+      );
+      if (!canvas) {
+        return false;
+      }
+
+      const computed = computeDefaultSwimlaneLayout(
+        nodes,
+        connections,
+        layer,
+        canvas,
+      );
+      const positions = Object.fromEntries(computed.entries());
+      savedPositionsRef.current = positions;
+
+      initialLayoutDoneRef.current = true;
+      setPositionsSeed((value) => value + 1);
+
+      const graph = buildFlowGraph({
+        ...graphInput,
+        mergedPositions: positions,
+      });
+      setFlowNodes(graph.flowNodes);
+      setFlowEdges(graph.flowEdges);
+
+      if (options?.fitView) {
+        window.requestAnimationFrame(() => {
+          void fitView({ padding: 0.2, duration: 300 });
+        });
+      }
+
+      return true;
+    },
+    [
+      nodes,
+      connections,
+      layer,
+      graphInput,
+      getViewport,
+      setFlowNodes,
+      setFlowEdges,
+      fitView,
+    ],
+  );
+
+  useEffect(() => {
+    if (initialLayoutDoneRef.current || nodes.length === 0 || !containerReady) {
+      return;
+    }
+
+    applyDefaultLayout({ fitView: true });
+  }, [nodes.length, containerReady, layer, applyDefaultLayout]);
+
   useEffect(() => {
     if (isDraggingRef.current) {
       pendingGraphSyncRef.current = true;
@@ -444,29 +538,6 @@ function TopologyGraphInner({
     pendingGraphSyncRef.current = false;
     applyGraphSync();
   }, [applyGraphSync]);
-
-  useEffect(() => {
-    if (viewportRestoredRef.current || nodes.length === 0) {
-      return;
-    }
-
-    const savedViewport = loadSavedViewport(viewportKey);
-    if (savedViewport) {
-      viewportRestoredRef.current = true;
-      initialFitDoneRef.current = true;
-      window.requestAnimationFrame(() => {
-        void setViewport(savedViewport, { duration: 0 });
-      });
-      return;
-    }
-
-    if (!initialFitDoneRef.current) {
-      initialFitDoneRef.current = true;
-      window.requestAnimationFrame(() => {
-        void fitView({ padding: 0.2, duration: 300 });
-      });
-    }
-  }, [nodes.length, viewportKey, setViewport, fitView]);
 
   useEffect(() => {
     if (!focusRequest || focusRequest.token === lastFocusTokenRef.current) {
@@ -496,15 +567,6 @@ function TopologyGraphInner({
       duration: 400,
     });
   }, [focusRequest, flowNodes, setCenter, fitView, getViewport]);
-
-  const persistViewport = useCallback(() => {
-    const viewport = getViewport();
-    saveViewport(viewportKey, viewport);
-  }, [getViewport, viewportKey]);
-
-  const handleMoveEnd = useCallback(() => {
-    persistViewport();
-  }, [persistViewport]);
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, flowNode) => {
@@ -546,64 +608,27 @@ function TopologyGraphInner({
     (_event: React.MouseEvent, flowNode: Node) => {
       isDraggingRef.current = false;
 
-      const topologyNode = nodesById.get(flowNode.id);
-      const snapped = topologyNode
-        ? snapToSwimlaneColumn(topologyNode, layer, flowNode.position)
-        : flowNode.position;
-
-      if (snapped.x !== flowNode.position.x) {
-        setFlowNodes((current) =>
-          current.map((node) =>
-            node.id === flowNode.id ? { ...node, position: snapped } : node,
-          ),
-        );
-      }
-
-      savedPositionsRef.current[flowNode.id] = snapped;
+      savedPositionsRef.current[flowNode.id] = flowNode.position;
       savedPositionsRef.current = mergeLayoutPositions(
         nodes.map((node) => node.id),
         savedPositionsRef.current,
         new Map(),
       );
-      savePositions(positionsKey, savedPositionsRef.current);
 
       if (pendingGraphSyncRef.current) {
         pendingGraphSyncRef.current = false;
         applyGraphSync();
       }
     },
-    [nodesById, layer, nodes, positionsKey, applyGraphSync, setFlowNodes],
+    [nodes, applyGraphSync],
   );
 
   const handleResetLayout = useCallback(() => {
-    savedPositionsRef.current = {};
-    sessionStorage.removeItem(positionsKey);
-    sessionStorage.removeItem(viewportKey);
-    viewportRestoredRef.current = false;
-    initialFitDoneRef.current = false;
-
-    const computed = computeLayout(LAYOUT_STRATEGY, nodes, connections, layer);
-    const graph = buildFlowGraph({
-      ...graphInput,
-      mergedPositions: Object.fromEntries(computed.entries()),
-    });
-    setFlowNodes(graph.flowNodes);
-    window.requestAnimationFrame(() => {
-      void fitView({ padding: 0.2, duration: 300 });
-    });
-  }, [
-    positionsKey,
-    viewportKey,
-    nodes,
-    connections,
-    layer,
-    graphInput,
-    setFlowNodes,
-    fitView,
-  ]);
+    applyDefaultLayout({ fitView: true });
+  }, [applyDefaultLayout]);
 
   return (
-    <div className="relative h-full w-full min-h-0">
+    <div ref={containerRef} className="relative h-full w-full min-h-0">
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
@@ -617,7 +642,6 @@ function TopologyGraphInner({
         onPaneClick={onPaneClick}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
-        onMoveEnd={handleMoveEnd}
         minZoom={0.05}
         maxZoom={2}
         onlyRenderVisibleElements
@@ -654,7 +678,7 @@ function TopologyGraphInner({
           Reset layout
         </button>
         <span className="rounded-lg border border-gray-700/60 bg-gray-900/70 px-2 py-1 text-[10px] uppercase tracking-wide text-gray-400">
-          Swimlane · {zoomLevel}
+          Free drag · {zoomLevel}
         </span>
       </div>
     </div>

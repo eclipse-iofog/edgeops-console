@@ -33,9 +33,18 @@ const ROLE_TIER: Record<TopologyLayer, Record<string, number>> = {
 
 const TIER_Y = [0, 280, 560];
 const TIER_X_SPACING = 200;
+/** Fallback column anchors when canvas is not measured (e.g. unit tests). */
 export const SWIMLANE_COLUMN_X = [0, 420, 840] as const;
-const SWIMLANE_X = SWIMLANE_COLUMN_X;
-const SWIMLANE_Y_SPACING = 120;
+/** Width share per column: spoke/leaf, interior/server, hub/default (sums to 1). */
+export const SWIMLANE_COLUMN_RATIOS: readonly [number, number, number] = [
+  0.38, 0.24, 0.38,
+];
+const SWIMLANE_MARGIN_RATIO = 0.06;
+const SWIMLANE_BASE_Y_SPACING = 120;
+const SWIMLANE_MIN_Y_SPACING = 52;
+const SWIMLANE_Y_FILL_RATIO = 0.72;
+const SWIMLANE_MIN_WORLD_WIDTH = 840;
+const SWIMLANE_MIN_WORLD_HEIGHT = 480;
 const RING_RADIUS = [0, 220, 420];
 const RING_SPREAD = Math.PI * 1.6;
 const BARYCENTER_PASSES = 6;
@@ -188,11 +197,106 @@ function swimlaneColumn(node: TopologyNodeBase, layer: TopologyLayer): number {
   return 1;
 }
 
+export type SwimlaneMetrics = {
+  columnX: readonly [number, number, number];
+  ySpacing: number;
+};
+
+export type SwimlaneCanvas = {
+  width: number;
+  height: number;
+  zoom: number;
+};
+
+export function getSwimlaneColumnCounts(
+  nodes: TopologyNodeBase[],
+  layer: TopologyLayer,
+): [number, number, number] {
+  const counts: [number, number, number] = [0, 0, 0];
+  for (const node of nodes) {
+    counts[swimlaneColumn(node, layer)] += 1;
+  }
+  return counts;
+}
+
+function columnCenterX(
+  columnIndex: number,
+  usableWidth: number,
+  margin: number,
+  ratios: readonly [number, number, number],
+): number {
+  let leading = 0;
+  for (let index = 0; index < columnIndex; index += 1) {
+    leading += ratios[index] ?? 0;
+  }
+  const ratio = ratios[columnIndex] ?? 0;
+  return margin + usableWidth * (leading + ratio / 2);
+}
+
+function fallbackSwimlaneMetrics(): SwimlaneMetrics {
+  return {
+    columnX: SWIMLANE_COLUMN_X,
+    ySpacing: SWIMLANE_BASE_Y_SPACING,
+  };
+}
+
+/** Derive lane centers and row spacing from canvas size and zoom (used on Reset layout). */
+export function computeSwimlaneMetrics(
+  columnCounts: [number, number, number],
+  canvas?: SwimlaneCanvas,
+): SwimlaneMetrics {
+  const maxCount = Math.max(...columnCounts, 1);
+
+  if (!canvas || canvas.width <= 0 || canvas.height <= 0 || canvas.zoom <= 0) {
+    return fallbackSwimlaneMetrics();
+  }
+
+  const worldWidth = Math.max(
+    canvas.width / canvas.zoom,
+    SWIMLANE_MIN_WORLD_WIDTH,
+  );
+  const worldHeight = Math.max(
+    canvas.height / canvas.zoom,
+    SWIMLANE_MIN_WORLD_HEIGHT,
+  );
+  const margin = worldWidth * SWIMLANE_MARGIN_RATIO;
+  const usableWidth = worldWidth - margin * 2;
+  const columnX: [number, number, number] = [
+    columnCenterX(0, usableWidth, margin, SWIMLANE_COLUMN_RATIOS),
+    columnCenterX(1, usableWidth, margin, SWIMLANE_COLUMN_RATIOS),
+    columnCenterX(2, usableWidth, margin, SWIMLANE_COLUMN_RATIOS),
+  ];
+  const ySpacing = Math.max(
+    SWIMLANE_MIN_Y_SPACING,
+    Math.min(
+      SWIMLANE_BASE_Y_SPACING,
+      (worldHeight * SWIMLANE_Y_FILL_RATIO) / maxCount,
+    ),
+  );
+
+  return { columnX, ySpacing };
+}
+
+/** Canvas-aware default: edge/leaf left, interior/server center, hub right. */
+export function computeDefaultSwimlaneLayout(
+  nodes: TopologyNodeBase[],
+  connections: TopologyConnection[],
+  layer: TopologyLayer,
+  canvas: SwimlaneCanvas,
+): Map<string, { x: number; y: number }> {
+  const metrics = computeSwimlaneMetrics(
+    getSwimlaneColumnCounts(nodes, layer),
+    canvas,
+  );
+  return computeSwimlaneLayout(nodes, connections, layer, metrics);
+}
+
 /** Left-to-right swimlanes: Spoke → Mid-tier → Hub. */
 export function computeSwimlaneLayout(
   nodes: TopologyNodeBase[],
   connections: TopologyConnection[],
   layer: TopologyLayer,
+  metrics: SwimlaneMetrics = fallbackSwimlaneMetrics(),
 ): Map<string, { x: number; y: number }> {
   const adjacency = buildAdjacency(connections);
   const columns: Record<number, string[]> = { 0: [], 1: [], 2: [] };
@@ -220,12 +324,13 @@ export function computeSwimlaneLayout(
   const positions = new Map<string, { x: number; y: number }>();
   for (const columnIndex of [0, 1, 2]) {
     const ids = columns[columnIndex];
-    const x = SWIMLANE_X[columnIndex] ?? 0;
-    const height = Math.max(ids.length - 1, 0) * SWIMLANE_Y_SPACING;
+    const x = metrics.columnX[columnIndex] ?? 0;
+    const ySpacing = metrics.ySpacing;
+    const height = Math.max(ids.length - 1, 0) * ySpacing;
     const startY = -height / 2;
 
     ids.forEach((id, index) => {
-      positions.set(id, { x, y: startY + index * SWIMLANE_Y_SPACING });
+      positions.set(id, { x, y: startY + index * ySpacing });
     });
   }
 
