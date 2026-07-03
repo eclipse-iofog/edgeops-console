@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
+import { useNetworkTopologyContext } from "@/app/providers/NetworkTopologyProvider";
 import { useResourceStoreContext } from "@/app/providers/ResourceStoreProvider";
 import { useWorkbench } from "@/app/providers/Workbench/useWorkbench";
 import {
@@ -24,6 +25,7 @@ function resolveActiveStoreId(
 /** Enables list polling for the resource store tied to the active workbench tab. */
 export default function ResourceStorePollingBridge() {
   const { stores } = useResourceStoreContext();
+  const { store: topologyStore } = useNetworkTopologyContext();
   const { getActiveTab } = useWorkbench();
   const location = useLocation();
   const [isVisible, setIsVisible] = useState(() => !document.hidden);
@@ -42,12 +44,16 @@ export default function ResourceStorePollingBridge() {
   }, []);
 
   useEffect(() => {
+    const shouldPollTopology =
+      isVisible && activeStoreId === "networkTopology";
+
+    topologyStore.setPollingActive(shouldPollTopology);
+
     for (const definition of STORE_DEFINITIONS) {
-      const shouldPoll =
-        isVisible && definition.id === activeStoreId;
+      const shouldPoll = isVisible && definition.id === activeStoreId;
       stores[definition.id].setPollingActive(shouldPoll);
     }
-  }, [activeStoreId, isVisible, stores]);
+  }, [activeStoreId, isVisible, stores, topologyStore]);
 
   return null;
 }

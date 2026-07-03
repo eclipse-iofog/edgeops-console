@@ -19,6 +19,7 @@ import Certificates from "@/features/cluster-config/certificates";
 import Services from "@/features/cluster-config/services";
 import PollingSettings from "@/features/cluster-config/pollingSettings";
 import Map from "@/features/topology/Map/Map";
+import MeshGraphPage from "@/features/topology/MeshGraph/MeshGraphPage";
 import Events from "@/Events";
 import Roles from "@/AccessControl/roles";
 import RoleBindings from "@/AccessControl/rolebindings";
@@ -66,6 +67,7 @@ export function createWorkbenchRouteElements({
         Component={SystemApplicationList}
       />
       <Route path="/nodes/Map" element={<Map collapsed={collapsed} />} />
+      <Route path="/nodes/mesh-graph" Component={MeshGraphPage} />
       <Route path="/config/AppTemplates" Component={AppTemplates} />
       <Route
         path="/config/CatalogMicroservices"

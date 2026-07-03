@@ -4,6 +4,7 @@ import { find, groupBy, get } from "lodash";
 import { useAuth } from "../../../auth";
 import AgentManager from "./agent-manager";
 import ApplicationManager from "./application-manager";
+import ClusterControllerManager from "./cluster-controller-manager";
 
 export const DataContext = React.createContext();
 export const useData = () => React.useContext(DataContext);
@@ -23,6 +24,7 @@ const initState = {
   msvcsPerAgent: [],
   applications: [],
   systemApplications: [],
+  clusterControllers: null,
 };
 
 export const actions = {
@@ -122,6 +124,10 @@ const updateData = (state, newController) => {
     reducedAgents,
     reducedApplications,
     systemApplications,
+    clusterControllers:
+      newController.clusterControllers !== undefined
+        ? newController.clusterControllers
+        : state.clusterControllers,
   };
 };
 
@@ -182,10 +188,25 @@ export const DataProvider = ({ children }) => {
     const microservices = applications.flatMap(
       (app) => app.microservices || [],
     );
+
+    let clusterControllers = null;
+    try {
+      clusterControllers =
+        await ClusterControllerManager.listClusterControllers(request)();
+    } catch {
+      clusterControllers = null;
+    }
+
     setError(false);
     dispatch({
       type: actions.UPDATE,
-      data: { agents, applications, microservices, systemApplications },
+      data: {
+        agents,
+        applications,
+        microservices,
+        systemApplications,
+        clusterControllers,
+      },
     });
     setLoading(false);
   }, [isAuthenticated, request]);

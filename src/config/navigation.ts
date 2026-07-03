@@ -21,7 +21,8 @@ export type ResourceStoreId =
   | "natsAccountRules"
   | "natsUserRules"
   | "identityUsers"
-  | "identityGroups";
+  | "identityGroups"
+  | "networkTopology";
 
 export type WorkbenchRoute = {
   path: string;
@@ -44,6 +45,13 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
   { path: "/dashboard", title: "Overview", pollMode: "full", workbenchEligible: true },
   { path: "/nodes/list", title: "Edgelet List", pollMode: "full", workbenchEligible: true },
   { path: "/nodes/Map", title: "Edgelet Map", pollMode: "full", workbenchEligible: true },
+  {
+    path: "/nodes/mesh-graph",
+    title: "Mesh Graph",
+    pollMode: "off",
+    resourceStoreId: "networkTopology",
+    workbenchEligible: true,
+  },
   {
     path: "/Workloads/MicroservicesList",
     title: "Microservices",
@@ -226,7 +234,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroupDef[] = [
   {
     id: "nodes",
     label: "Nodes",
-    childPaths: ["/nodes/list", "/nodes/Map"],
+    childPaths: ["/nodes/list", "/nodes/Map", "/nodes/mesh-graph"],
   },
   {
     id: "workloads",

@@ -28,6 +28,7 @@ import { getRouteTitle,
   type SidebarNavGroupDef,
 } from "@/config/navigation";
 import { useWorkbench } from "@/app/providers";
+import { buildResourceSearch } from "@/components/ui/ResourceLink";
 import SidebarNavButton from "./SidebarNavButton";
 import SidebarNavGroup from "./SidebarNavGroup";
 import SidebarNavItem from "./SidebarNavItem";
@@ -109,6 +110,18 @@ export default function AppSidebar({
       path,
       title: getRouteTitle(path),
       pinned: options?.pinned,
+    });
+  };
+
+  const handleOpenApi = () => {
+    openTab({
+      path: "/api",
+      search: buildResourceSearch(undefined, {
+        authToken: accessToken,
+        baseUrl: getApiV3BaseUrl(),
+      }),
+      title: getRouteTitle("/api"),
+      pinned: true,
     });
   };
 
@@ -249,13 +262,12 @@ export default function AppSidebar({
               >
                 GitHub
               </span>
-              <a
-                className="underline underline-offset-2"
-                href={`/#/api?authToken=${accessToken}&baseUrl=${encodeURIComponent(getApiV3BaseUrl())}`}
-                target="_parent"
+              <span
+                className="cursor-pointer underline underline-offset-2"
+                onClick={handleOpenApi}
               >
                 API
-              </a>
+              </span>
               <span
                 className="cursor-pointer underline"
                 onClick={() => window.open(LICENSE_URL, "_blank")}

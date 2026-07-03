@@ -17,6 +17,7 @@ import {
   PollingConfigProvider,
   ResourceStoreProvider,
 } from "@/app/providers";
+import { NetworkTopologyProvider } from "@/app/providers/NetworkTopologyProvider";
 import AppLayout from "@/components/layout/AppLayout";
 import "./App.scss";
 
@@ -90,13 +91,15 @@ function AppShell() {
             <ControllerProvider>
               <PollingConfigProvider>
                 <ResourceStoreProvider>
-                  <DataProvider>
-                    <TerminalProvider>
-                      <LogViewerProvider>
-                        <AppLayout />
-                      </LogViewerProvider>
-                    </TerminalProvider>
-                  </DataProvider>
+                  <NetworkTopologyProvider>
+                    <DataProvider>
+                      <TerminalProvider>
+                        <LogViewerProvider>
+                          <AppLayout />
+                        </LogViewerProvider>
+                      </TerminalProvider>
+                    </DataProvider>
+                  </NetworkTopologyProvider>
                 </ResourceStoreProvider>
               </PollingConfigProvider>
             </ControllerProvider>

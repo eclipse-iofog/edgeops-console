@@ -1,6 +1,7 @@
 import { useData } from '@/app/providers'
-import { Cpu, Boxes, ServerCog, Activity } from 'lucide-react'
+import { Cpu, Boxes, ServerCog, Activity, Server } from 'lucide-react'
 import AgentDashboard from './component/AgentDashboard'
+import ClusterControllersDashboard from './component/ClusterControllersDashboard'
 import MicroservicesDashboard from './component/MicroservicesDashboard'
 import SystemMicroservicesDashboard from './component/SystemMicroservicesDashboard'
 import { StatusType } from "@/lib/constants/Enums/StatusColor"
@@ -19,8 +20,13 @@ const Dashboard = () => {
   const runningMicroservices = allMicroservices.filter(msvc => msvc.status?.status?.toUpperCase() === StatusType.RUNNING).length
   const totalSystemMicroservices = systemMicroservices.length
   const runningSystemMicroservices = systemMicroservices.filter(msvc => msvc.status?.status?.toUpperCase() === StatusType.RUNNING).length
+  const clusterControllers = data?.clusterControllers
+  const showClusterControllers = clusterControllers !== null
+  const activeClusterControllers = showClusterControllers
+    ? clusterControllers.filter(controller => controller.isActive).length
+    : 0
 
-  const metrics = [
+  const baseMetrics = [
     {
       title: 'Edge Nodes',
       value: totalAgents,
@@ -51,6 +57,20 @@ const Dashboard = () => {
     }
   ]
 
+  const metrics = showClusterControllers
+    ? [{
+        title: 'Cluster Controllers',
+        value: clusterControllers.length,
+        running: activeClusterControllers,
+        color: 'from-cyan-500 to-teal-600',
+        icon: <Server className='w-6 h-6' strokeWidth={2} />
+      }, ...baseMetrics]
+    : baseMetrics
+
+  const metricsGridClass = metrics.length === 5
+    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 2xl:grid-cols-5 3xl:grid-cols-5 gap-4 sm:gap-6 xl:gap-8 2xl:gap-10 mb-6 sm:mb-8 xl:mb-10'
+    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-4 3xl:grid-cols-4 gap-4 sm:gap-6 xl:gap-8 2xl:gap-10 mb-6 sm:mb-8 xl:mb-10'
+
   return (
     <div className='min-h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white'>
       {/* Header */}
@@ -71,7 +91,7 @@ const Dashboard = () => {
 
       <div className='w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 3xl:px-20 py-8'>
         {/* Key Metrics Cards */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-4 3xl:grid-cols-4 gap-4 sm:gap-6 xl:gap-8 2xl:gap-10 mb-6 sm:mb-8 xl:mb-10'>
+        <div className={metricsGridClass}>
           {metrics.map((metric, index) => (
             <div key={index} className={`bg-gradient-to-br ${metric.color} rounded-xl p-4 sm:p-6 xl:p-8 2xl:p-10 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
               <div className='flex items-center justify-between'>
@@ -96,6 +116,11 @@ const Dashboard = () => {
 
         {/* Dashboard Cards */}
         <div className='space-y-8 xl:space-y-12 2xl:space-y-16'>
+          {showClusterControllers && (
+            <ClusterControllersDashboard
+              controllers={clusterControllers}
+            />
+          )}
           <AgentDashboard
             agentData={agentData}
           />
