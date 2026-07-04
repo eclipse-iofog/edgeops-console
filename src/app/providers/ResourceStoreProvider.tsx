@@ -34,20 +34,30 @@ type ResourceStoreProviderProps = {
 };
 
 export function ResourceStoreProvider({ children }: ResourceStoreProviderProps) {
-  const { request } = useController();
+  const { request, isControllerHealthy } = useController();
   const { pushFeedback } = useFeedback();
   const { getListPollingInterval } = usePollingConfig();
   const getListPollingIntervalRef = useRef(getListPollingInterval);
   getListPollingIntervalRef.current = getListPollingInterval;
 
+  const pushFeedbackRef = useRef(pushFeedback);
+  pushFeedbackRef.current = pushFeedback;
+
+  const isControllerHealthyRef = useRef(isControllerHealthy);
+  isControllerHealthyRef.current = isControllerHealthy;
+
+  const requestRef = useRef(request);
+  requestRef.current = request;
+
   const stores = useMemo(
     () =>
       createResourceStores({
-        request,
-        pushFeedback,
+        request: (...args) => requestRef.current(...args),
+        pushFeedback: (...args) => pushFeedbackRef.current(...args),
         getListPollingInterval: () => getListPollingIntervalRef.current(),
+        shouldFetch: () => isControllerHealthyRef.current,
       }),
-    [request, pushFeedback],
+    [],
   );
 
   const value = useMemo(() => ({ stores }), [stores]);

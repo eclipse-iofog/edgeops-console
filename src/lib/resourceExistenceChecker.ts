@@ -1,6 +1,17 @@
 import { ResourceKind, getResourceIdentifier } from "@/lib/yaml/unifiedYamlParser";
+import {
+  dedupeInFlight,
+  getInFlightDedupeKey,
+} from "@/lib/http/inFlightDedupe";
 
 export type ResourceExistenceCache = Map<string, Map<string, boolean>>;
+
+async function fetchListResponse(
+  path: string,
+  request: (path: string, options?: any) => Promise<any>,
+): Promise<any | null> {
+  return dedupeInFlight(getInFlightDedupeKey("GET", path), () => request(path));
+}
 
 /**
  * Fetch all existing resources for a specific kind
@@ -12,7 +23,7 @@ export async function fetchExistingResources(
   try {
     switch (kind) {
       case "Service": {
-        const response = await request("/api/v3/services");
+        const response = await fetchListResponse("/api/v3/services", request);
         if (response?.ok) {
           const data = await response.json();
           return Array.isArray(data) ? data : [];
@@ -20,7 +31,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Secret": {
-        const response = await request("/api/v3/secrets");
+        const response = await fetchListResponse("/api/v3/secrets", request);
         if (response?.ok) {
           const data = await response.json();
           const secrets = data.secrets || data;
@@ -29,7 +40,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "ConfigMap": {
-        const response = await request("/api/v3/configmaps");
+        const response = await fetchListResponse("/api/v3/configmaps", request);
         if (response?.ok) {
           const data = await response.json();
           const configMaps = data.configMaps || data;
@@ -39,7 +50,7 @@ export async function fetchExistingResources(
       }
       case "Certificate":
       case "CertificateAuthority": {
-        const response = await request("/api/v3/certificates");
+        const response = await fetchListResponse("/api/v3/certificates", request);
         if (response?.ok) {
           const data = await response.json();
           const certificates = data.certificates || data;
@@ -48,7 +59,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Registry": {
-        const response = await request("/api/v3/registries");
+        const response = await fetchListResponse("/api/v3/registries", request);
         if (response?.ok) {
           const data = await response.json();
           const registries = data.registries || data;
@@ -57,7 +68,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "VolumeMount": {
-        const response = await request("/api/v3/volumeMounts");
+        const response = await fetchListResponse("/api/v3/volumeMounts", request);
         if (response?.ok) {
           const data = await response.json();
           return Array.isArray(data) ? data : [];
@@ -65,7 +76,10 @@ export async function fetchExistingResources(
         return [];
       }
       case "CatalogItem": {
-        const response = await request("/api/v3/catalog/microservices");
+        const response = await fetchListResponse(
+          "/api/v3/catalog/microservices",
+          request,
+        );
         if (response?.ok) {
           const data = await response.json();
           const catalogItems = data.catalogItems || data;
@@ -74,7 +88,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "ApplicationTemplate": {
-        const response = await request("/api/v3/catalog/templates");
+        const response = await fetchListResponse("/api/v3/catalog/templates", request);
         if (response?.ok) {
           const data = await response.json();
           const templates = data.applicationTemplates || data.templates || data;
@@ -83,7 +97,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Application": {
-        const response = await request("/api/v3/application");
+        const response = await fetchListResponse("/api/v3/application", request);
         if (response?.ok) {
           const data = await response.json();
           const applications = data.applications || data;
@@ -92,7 +106,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Microservice": {
-        const response = await request("/api/v3/microservices");
+        const response = await fetchListResponse("/api/v3/microservices", request);
         if (response?.ok) {
           const data = await response.json();
           const microservices = data.microservices || data;
@@ -101,7 +115,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Agent": {
-        const response = await request("/api/v3/iofog-list");
+        const response = await fetchListResponse("/api/v3/iofog-list", request);
         if (response?.ok) {
           const data = await response.json();
           const fogs = data.fogs || data;
@@ -110,7 +124,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "Role": {
-        const response = await request("/api/v3/roles");
+        const response = await fetchListResponse("/api/v3/roles", request);
         if (response?.ok) {
           const data = await response.json();
           const roles = data.roles || data;
@@ -119,7 +133,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "RoleBinding": {
-        const response = await request("/api/v3/rolebindings");
+        const response = await fetchListResponse("/api/v3/rolebindings", request);
         if (response?.ok) {
           const data = await response.json();
           const bindings = data.bindings || data;
@@ -128,7 +142,7 @@ export async function fetchExistingResources(
         return [];
       }
       case "ServiceAccount": {
-        const response = await request("/api/v3/serviceaccounts");
+        const response = await fetchListResponse("/api/v3/serviceaccounts", request);
         if (response?.ok) {
           const data = await response.json();
           const serviceAccounts = data.serviceAccounts || data;
@@ -137,7 +151,10 @@ export async function fetchExistingResources(
         return [];
       }
       case "NatsAccountRule": {
-        const response = await request("/api/v3/nats/account-rules");
+        const response = await fetchListResponse(
+          "/api/v3/nats/account-rules",
+          request,
+        );
         if (response?.ok) {
           const data = await response.json();
           const rules = data.rules || data;
@@ -146,7 +163,10 @@ export async function fetchExistingResources(
         return [];
       }
       case "NatsUserRule": {
-        const response = await request("/api/v3/nats/user-rules");
+        const response = await fetchListResponse(
+          "/api/v3/nats/user-rules",
+          request,
+        );
         if (response?.ok) {
           const data = await response.json();
           const rules = data.rules || data;

@@ -19,13 +19,12 @@ import { getTextColor } from "../../lib/formatting";
 import { useLocation } from "react-router-dom";
 import ResourceLink from "@/components/ui/ResourceLink";
 import { useTerminal } from "@/app/providers";
-import ApplicationManager from "@/app/providers/Data/application-manager";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 
 function SystemApplicationList() {
   const applicationPatchWarning =
     "Application YAML save uses PATCH and only supports app-level fields such as natsConfig, description, activation, and system flag. Microservice changes in this YAML will not be applied. To update microservices, please go to Microservice List and edit each microservice there.\n\nDo you want to continue?";
-  const { data } = useData();
+  const { data, refreshRuntimeLight } = useData();
   const { request } = useController();
   const { pushFeedback } = useFeedback();
 
@@ -63,9 +62,10 @@ function SystemApplicationList() {
   const handleRefreshSystemApplication = async () => {
     if (!selectedApplication?.name) return;
     try {
-      const systemApplications =
-        await ApplicationManager.listSystemApplications(request)();
-      const updatedApplication = systemApplications.find(
+      const result = await refreshRuntimeLight();
+      if (!result) return;
+
+      const updatedApplication = result.systemApplications.find(
         (a: any) =>
           a.name === selectedApplication.name ||
           a.id === selectedApplication.id,
@@ -267,12 +267,12 @@ function SystemApplicationList() {
   // Unified YAML upload hook
   // System Applications are managed by Data provider which polls automatically
   const refreshFunctions = React.useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, () => Promise<void>>();
     map.set("Application", async () => {
-      // Data provider will automatically refresh on next poll cycle
+      await refreshRuntimeLight();
     });
     return map;
-  }, []);
+  }, [refreshRuntimeLight]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,

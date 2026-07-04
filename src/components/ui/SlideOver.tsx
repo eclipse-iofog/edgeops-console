@@ -12,7 +12,7 @@ import {
   Key as VpnKeyIcon,
   ArrowUpDown as VersionChangeIcon,
 } from "lucide-react";
-import { usePollingConfig } from "@/app/providers";
+import { usePollingConfig, useController } from "@/app/providers";
 
 type Field<T> = {
   label: string;
@@ -75,6 +75,7 @@ const SlideOver = <T,>({
   const [width, setWidth] = useState(customWidth ? customWidth : 480);
   const isResizing = useRef(false);
   const { getSlideoverInterval } = usePollingConfig();
+  const { isControllerHealthy } = useController();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const onRefreshRef = useRef(onRefresh);
 
@@ -83,38 +84,63 @@ const SlideOver = <T,>({
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  // Set up polling when slideover is open and polling is enabled
+  // Poll only after each refresh completes; pause while Controller is unreachable.
   useEffect(() => {
-    // Clear any existing interval first
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    let cancelled = false;
 
-    // Only set up polling if slideover is open, polling is enabled, and refresh callback exists
-    if (open && enablePolling && onRefreshRef.current) {
-      const interval = getSlideoverInterval();
-      intervalRef.current = setInterval(() => {
-        // Only call refresh if slideover is still open
-        if (onRefreshRef.current) {
-          const result = onRefreshRef.current();
-          if (result instanceof Promise) {
-            result.catch((error) => {
-              console.error("Error refreshing slideover data:", error);
-            });
-          }
-        }
-      }, interval);
-    }
-
-    // Cleanup on unmount or when dependencies change
-    return () => {
+    const clearScheduledPoll = () => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [open, enablePolling, getSlideoverInterval]);
+
+    const schedulePoll = () => {
+      clearScheduledPoll();
+      if (
+        cancelled ||
+        !open ||
+        !enablePolling ||
+        !onRefreshRef.current ||
+        !isControllerHealthy
+      ) {
+        return;
+      }
+
+      const interval = getSlideoverInterval();
+      intervalRef.current = setTimeout(async () => {
+        intervalRef.current = null;
+        if (
+          cancelled ||
+          !open ||
+          !enablePolling ||
+          !onRefreshRef.current ||
+          !isControllerHealthy
+        ) {
+          return;
+        }
+
+        try {
+          await onRefreshRef.current();
+        } catch (error) {
+          console.error("Error refreshing slideover data:", error);
+        }
+
+        schedulePoll();
+      }, interval);
+    };
+
+    if (open && enablePolling && onRefreshRef.current && isControllerHealthy) {
+      schedulePoll();
+    } else {
+      clearScheduledPoll();
+    }
+
+    return () => {
+      cancelled = true;
+      clearScheduledPoll();
+    };
+  }, [open, enablePolling, getSlideoverInterval, isControllerHealthy]);
 
   const startResizing = (e: React.MouseEvent) => {
     e.preventDefault();

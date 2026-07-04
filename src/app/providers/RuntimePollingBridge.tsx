@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
-import { useData } from "@/app/providers";
+import { useData, useController } from "@/app/providers";
 import { usePollingConfig } from "@/app/providers/PollingConfig/PollingConfigProvider";
 import { useWorkbench } from "@/app/providers/Workbench/useWorkbench";
 import { useAuth } from "@/auth";
@@ -40,12 +40,14 @@ function runPollForMode(
 /** Polls runtime data based on the active workbench tab's poll mode. */
 export default function RuntimePollingBridge() {
   const { refreshData, refreshRuntimeLight } = useData();
+  const { isControllerHealthy } = useController();
   const { mainPollingInterval } = usePollingConfig();
   const { getActiveTab } = useWorkbench();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   const [isVisible, setIsVisible] = React.useState(() => !document.hidden);
   const previousPathRef = useRef<string | null>(null);
+  const wasControllerHealthyRef = useRef(isControllerHealthy);
 
   const getActivePath = useCallback(
     () => resolveActivePath(location.pathname, getActiveTab),
@@ -67,7 +69,7 @@ export default function RuntimePollingBridge() {
   }, []);
 
   const pollCallback = useCallback(async () => {
-    if (!isAuthenticated || document.hidden) {
+    if (!isAuthenticated || document.hidden || !isControllerHealthy) {
       return;
     }
 
@@ -75,6 +77,7 @@ export default function RuntimePollingBridge() {
     runPollForMode(getPollMode(path), refreshData, refreshRuntimeLight);
   }, [
     isAuthenticated,
+    isControllerHealthy,
     location.pathname,
     getActiveTab,
     refreshData,
@@ -84,6 +87,7 @@ export default function RuntimePollingBridge() {
   const pollingDelay =
     isAuthenticated &&
     isVisible &&
+    isControllerHealthy &&
     pollMode !== POLL_MODES.OFF
       ? mainPollingInterval
       : null;
@@ -106,11 +110,38 @@ export default function RuntimePollingBridge() {
       previousPathRef.current !== null &&
       previousPathRef.current !== activePath
     ) {
-      runPollForMode(mode, refreshData, refreshRuntimeLight);
+      if (isControllerHealthy) {
+        runPollForMode(mode, refreshData, refreshRuntimeLight);
+      }
     }
 
     previousPathRef.current = activePath;
-  }, [activePath, isAuthenticated, refreshData, refreshRuntimeLight]);
+  }, [
+    activePath,
+    isAuthenticated,
+    isControllerHealthy,
+    refreshData,
+    refreshRuntimeLight,
+  ]);
+
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      isControllerHealthy &&
+      !wasControllerHealthyRef.current
+    ) {
+      const path = resolveActivePath(location.pathname, getActiveTab);
+      runPollForMode(getPollMode(path), refreshData, refreshRuntimeLight);
+    }
+    wasControllerHealthyRef.current = isControllerHealthy;
+  }, [
+    isAuthenticated,
+    isControllerHealthy,
+    location.pathname,
+    getActiveTab,
+    refreshData,
+    refreshRuntimeLight,
+  ]);
 
   return null;
 }

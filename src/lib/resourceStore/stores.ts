@@ -59,7 +59,7 @@ export const STORE_DEFINITIONS: StoreDefinition[] = [
 export type ResourceStoreMap = Record<ResourceStoreId, ResourceStore>;
 
 export function createResourceStores(deps: ResourceStoreDeps): ResourceStoreMap {
-  const { request, pushFeedback, getListPollingInterval } = deps;
+  const { request, pushFeedback, getListPollingInterval, shouldFetch } = deps;
 
   const stores = {} as ResourceStoreMap;
 
@@ -69,12 +69,14 @@ export function createResourceStores(deps: ResourceStoreDeps): ResourceStoreMap 
       definition.endpoint,
       definition.jsonPath,
       pushFeedback,
+      shouldFetch,
     );
 
     stores[definition.id] = createResourceStore({
       ...definition,
       fetchItems,
       getListPollingInterval,
+      shouldFetch,
     });
   }
 

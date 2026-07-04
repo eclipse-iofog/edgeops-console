@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "@/lib/http/fetchWithTimeout";
 import { getApiBase, getApiV3Base, getWsBase } from "./apiBase";
 import { enrichProfileFromToken } from "./jwt";
 import type { AuthProfile } from "./AuthContext";
@@ -76,7 +77,7 @@ export type FetchProfileResult = {
 export async function fetchProfile(
   accessToken: string,
 ): Promise<FetchProfileResult> {
-  const response = await fetch(authPath("profileUrl"), {
+  const response = await fetchWithTimeout(authPath("profileUrl"), {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -114,7 +115,7 @@ export type AuthApiError = {
 
 export async function postLogout(accessToken: string): Promise<void> {
   try {
-    await fetch(authPath("logoutUrl"), {
+    await fetchWithTimeout(authPath("logoutUrl"), {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -127,7 +128,7 @@ export async function postChangePassword(
   accessToken: string,
   payload: { currentPassword: string; newPassword: string },
 ): Promise<{ kind: "success" } | AuthApiError> {
-  const response = await fetch(authPath("changePasswordUrl"), {
+  const response = await fetchWithTimeout(authPath("changePasswordUrl"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -157,7 +158,7 @@ export type MfaEnrollResult = {
 export async function postMfaEnroll(
   accessToken: string,
 ): Promise<MfaEnrollResult | AuthApiError> {
-  const response = await fetch(`${getApiBaseUrl()}/api/v3/user/mfa/enroll`, {
+  const response = await fetchWithTimeout(`${getApiBaseUrl()}/api/v3/user/mfa/enroll`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -192,7 +193,7 @@ export async function postMfaConfirm(
   accessToken: string,
   code: string,
 ): Promise<{ kind: "success" } | AuthApiError> {
-  const response = await fetch(`${getApiBaseUrl()}/api/v3/user/mfa/confirm`, {
+  const response = await fetchWithTimeout(`${getApiBaseUrl()}/api/v3/user/mfa/confirm`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -216,7 +217,7 @@ export async function postMfaConfirm(
 export async function postRefresh(
   refreshToken: string,
 ): Promise<TokenPair | null> {
-  const response = await fetch(authPath("refreshUrl"), {
+  const response = await fetchWithTimeout(authPath("refreshUrl"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),

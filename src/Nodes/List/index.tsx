@@ -102,8 +102,8 @@ function NodesList() {
       render: (row: any) => (
         <CustomProgressBar
           value={row.diskUsage}
-          max={row.systemAvailableDisk}
-          unit="agent"
+          max={row.diskLimit}
+          unit="agent-disk"
         />
       ),
     },

@@ -1,4 +1,11 @@
-import React, { ReactNode, useReducer, useContext, createContext } from "react";
+import React, {
+  ReactNode,
+  useReducer,
+  useContext,
+  createContext,
+  useCallback,
+  useMemo,
+} from "react";
 import { findIndex } from "lodash";
 import Alert from "@/components/ui/Alert";
 
@@ -199,26 +206,36 @@ interface FeedbackProviderProps {
 export default function FeedbackProvider({ children }: FeedbackProviderProps) {
   const [state, dispatch] = useReducer(reducer, initState);
 
-  const setFeedbacks = (newFeedbacks: Feedback[]) => {
+  const setFeedbacks = useCallback((newFeedbacks: Feedback[]) => {
     dispatch({ type: actions.SET, data: newFeedbacks });
-  };
+  }, []);
 
-  const pushFeedback = (newFeedback: Omit<Feedback, "id" | "timeout">) => {
-    dispatch({ type: actions.ADD, data: newFeedback, dispatch });
-  };
+  const pushFeedback = useCallback(
+    (newFeedback: Omit<Feedback, "id" | "timeout">) => {
+      dispatch({ type: actions.ADD, data: newFeedback, dispatch });
+    },
+    [dispatch],
+  );
 
-  const handleMouseEnter = (id: number) => {
+  const handleMouseEnter = useCallback((id: number) => {
     dispatch({ type: actions.PAUSE, data: { id } });
-  };
+  }, []);
 
-  const handleMouseLeave = (id: number) => {
+  const handleMouseLeave = useCallback((id: number) => {
     dispatch({ type: actions.RESUME, data: { id, dispatch } });
-  };
+  }, [dispatch]);
+
+  const contextValue = useMemo(
+    () => ({
+      feedbacks: state.feedbacks,
+      setFeedbacks,
+      pushFeedback,
+    }),
+    [state.feedbacks, setFeedbacks, pushFeedback],
+  );
 
   return (
-    <FeedbackContext.Provider
-      value={{ feedbacks: state.feedbacks, setFeedbacks, pushFeedback }}
-    >
+    <FeedbackContext.Provider value={contextValue}>
       {children}
       <Alert
         open={state.feedbacks.length > 0}

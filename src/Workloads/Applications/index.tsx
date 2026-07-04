@@ -19,13 +19,12 @@ import { getTextColor } from "../../lib/formatting";
 import { useLocation } from "react-router-dom";
 import ResourceLink from "@/components/ui/ResourceLink";
 import { useTerminal } from "@/app/providers";
-import ApplicationManager from "@/app/providers/Data/application-manager";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 
 function ApplicationList() {
   const applicationPatchWarning =
     "Application YAML Editor save uses PATCH and only supports app-level fields such as spec.natsConfig, description, activation, and system flag. Microservice changes in this YAML (including spec.microservices[].natsConfig) will not be applied. To update microservices, please go to Microservice List and edit each microservice there. Or you can upload an updated Application YAML file to update the whole application.\n\nDo you want to continue?";
-  const { data } = useData();
+  const { data, refreshRuntimeLight } = useData();
   const { request } = useController();
   const { pushFeedback } = useFeedback();
   const [isOpen, setIsOpen] = useState(false);
@@ -62,8 +61,10 @@ function ApplicationList() {
   const handleRefreshApplication = async () => {
     if (!selectedApplication?.name) return;
     try {
-      const applications = await ApplicationManager.listApplications(request)();
-      const updatedApplication = applications.find(
+      const result = await refreshRuntimeLight();
+      if (!result) return;
+
+      const updatedApplication = result.applications.find(
         (a: any) =>
           a.name === selectedApplication.name ||
           a.id === selectedApplication.id,
@@ -76,18 +77,15 @@ function ApplicationList() {
     }
   };
 
-  // Unified YAML upload hook
-  const refreshApplications = async () => {
-    // Applications are managed by Data provider which polls automatically
-    // Just wait a bit for the next poll cycle to pick up changes
-    // In a real scenario, you might want to trigger a manual refresh via Data provider
-  };
+  const refreshApplications = React.useCallback(async () => {
+    await refreshRuntimeLight();
+  }, [refreshRuntimeLight]);
 
   const refreshFunctions = React.useMemo(() => {
     const map = new Map();
     map.set("Application", refreshApplications);
     return map;
-  }, []);
+  }, [refreshApplications]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,

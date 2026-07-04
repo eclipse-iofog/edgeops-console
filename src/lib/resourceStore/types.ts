@@ -21,6 +21,10 @@ export type ResourceStore<T = unknown> = {
   setPollingActive: (active: boolean) => void;
 };
 
+export type ListFetchOptions = {
+  silent?: boolean;
+};
+
 export type ResourceStoreDeps = {
   request: (path: string, options?: RequestInit) => Promise<ResponseLike>;
   pushFeedback: (feedback: {
@@ -28,6 +32,7 @@ export type ResourceStoreDeps = {
     type: "success" | "error" | "info" | "warning";
   }) => void;
   getListPollingInterval: () => number;
+  shouldFetch: () => boolean;
 };
 
 export type ResponseLike = {

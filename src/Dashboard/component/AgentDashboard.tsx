@@ -1,8 +1,12 @@
 import React from "react";
 import { Cpu } from "lucide-react";
-import ApexCharts from "react-apexcharts";
+import ResponsiveApexChart from "@/components/ui/ResponsiveApexChart";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
-import { MiBFactor, prettyBytes } from "../../lib/formatting";
+import {
+  formatAgentDiskUsage,
+  MiBFactor,
+  prettyBytes,
+} from "../../lib/formatting";
 
 interface AgentData {
   uuid: string;
@@ -157,7 +161,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
       y: agent.memoryUsage
         ? (agent.memoryUsage * MiBFactor) / (1024 * 1024)
         : 0,
-      z: agent.diskUsage ? (agent.diskUsage * MiBFactor) / (1024 * 1024) : 0,
+      z: (agent.diskUsage || 0) * 1024,
+      diskUsageGiB: agent.diskUsage || 0,
       daemonStatus: agent.daemonStatus,
       name: agent.name,
     })),
@@ -234,7 +239,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
           return '<div style="padding:12px; color:#fff; font-family: Inter, system-ui, sans-serif;">No data available</div>';
 
         const memoryPretty = prettyBytes(point.y * MiBFactor);
-        const diskPretty = prettyBytes(point.z * MiBFactor);
+        const diskPretty = formatAgentDiskUsage(point.diskUsageGiB);
         const statusColor =
           StatusColor[point.daemonStatus as keyof typeof StatusColor] ||
           StatusColor.UNKNOWN;
@@ -391,7 +396,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
             <div className="text-xs sm:text-sm text-gray-400">Real-time</div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">
-            <ApexCharts
+            <ResponsiveApexChart
               options={daemonStatusChartOptions}
               series={daemonStatusChartSeries}
               type="donut"
@@ -402,7 +407,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
                     ? 300
                     : 250
               }
-              width="100%"
             />
           </div>
         </div>
@@ -417,7 +421,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">
-            <ApexCharts
+            <ResponsiveApexChart
               options={bubbleChartOptions}
               series={bubbleSeries}
               type="bubble"
@@ -428,7 +432,6 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
                     ? 300
                     : 250
               }
-              width="100%"
             />
           </div>
         </div>

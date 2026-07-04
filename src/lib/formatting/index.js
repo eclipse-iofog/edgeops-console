@@ -24,6 +24,16 @@ export const tagColor = theme.colors.neutral_3;
 
 export const dateFormat = "YYYY/MM/DD hh:mm:ss a";
 export const MiBFactor = 1048576;
+/** Edgelet status.diskUsage wire unit: GiB (decimal, bytes ÷ 1e9). */
+export const GiBFactorDecimal = 1_000_000_000;
+
+export function agentDiskUsageToBytes(diskUsageGiB) {
+  return Number(diskUsageGiB || 0) * GiBFactorDecimal;
+}
+
+export function formatAgentDiskUsage(diskUsageGiB) {
+  return prettyBytes(agentDiskUsageToBytes(diskUsageGiB));
+}
 
 export const architectures = {
   0: "auto",

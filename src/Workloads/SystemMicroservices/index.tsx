@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useData } from "@/app/providers";
-import ApplicationManager from "@/app/providers/Data/application-manager";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import CustomProgressBar from "@/components/ui/CustomProgressBar";
 import SlideOver from "@/components/ui/SlideOver";
@@ -37,7 +36,7 @@ import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 
 function SystemMicroserviceList() {
-  const { data } = useData();
+  const { data, refreshData } = useData();
   const flattenedMicroservices = (data.systemApplications ?? []).flatMap(
     (app: any) =>
       app.microservices.map((ms: any) => ({
@@ -109,12 +108,11 @@ function SystemMicroserviceList() {
   const handleRefreshSystemMicroservice = async () => {
     if (!selectedMs?.uuid) return;
     try {
-      const systemApplications =
-        await ApplicationManager.listSystemApplicationsWithMicroservices(
-          request,
-        )();
+      const result = await refreshData();
+      if (!result) return;
+
       const reducedAgents = data?.reducedAgents?.byUUID ?? {};
-      const flattened = systemApplications.flatMap((app: any) =>
+      const flattened = result.systemApplications.flatMap((app: any) =>
         (app.microservices || []).map((ms: any) => ({
           ...ms,
           agentName: reducedAgents[ms.iofogUuid]?.name,
@@ -434,12 +432,12 @@ function SystemMicroserviceList() {
   }, [selectedVolume]);
 
   const refreshFunctions = React.useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, () => Promise<void>>();
     map.set("Microservice", async () => {
-      // Data provider will automatically refresh on next poll cycle
+      await refreshData();
     });
     return map;
-  }, []);
+  }, [refreshData]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,

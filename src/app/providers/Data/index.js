@@ -146,108 +146,140 @@ const reducer = (state, action) => {
 };
 
 export const DataProvider = ({ children }) => {
-  const { request } = useController();
+  const { request, isControllerHealthy } = useController();
   const [state, dispatch] = React.useReducer(reducer, initState);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
   const { isAuthenticated } = useAuth();
+  const refreshDataInFlightRef = React.useRef(null);
+  const refreshRuntimeLightInFlightRef = React.useRef(null);
 
   const refreshData = React.useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isControllerHealthy) {
       return;
     }
 
-    let agents = [];
-    try {
-      agents = await AgentManager.listAgents(request)();
-    } catch (e) {
-      setError(e);
-      return;
+    if (refreshDataInFlightRef.current) {
+      return refreshDataInFlightRef.current;
     }
 
-    let applications = [];
-    try {
-      applications =
-        await ApplicationManager.listApplicationsWithMicroservices(request)();
-    } catch (e) {
-      setError(e);
-      return;
-    }
+    const run = async () => {
+      let agents = [];
+      try {
+        agents = await AgentManager.listAgents(request)();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
 
-    let systemApplications = [];
-    try {
-      systemApplications =
-        await ApplicationManager.listSystemApplicationsWithMicroservices(
-          request,
-        )();
-    } catch (e) {
-      setError(e);
-      return;
-    }
+      let applications = [];
+      try {
+        applications =
+          await ApplicationManager.listApplicationsWithMicroservices(request)();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
 
-    const microservices = applications.flatMap(
-      (app) => app.microservices || [],
-    );
+      let systemApplications = [];
+      try {
+        systemApplications =
+          await ApplicationManager.listSystemApplicationsWithMicroservices(
+            request,
+          )();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
 
-    let clusterControllers = null;
-    try {
-      clusterControllers =
-        await ClusterControllerManager.listClusterControllers(request)();
-    } catch {
-      clusterControllers = null;
-    }
+      const microservices = applications.flatMap(
+        (app) => app.microservices || [],
+      );
 
-    setError(false);
-    dispatch({
-      type: actions.UPDATE,
-      data: {
+      let clusterControllers = null;
+      try {
+        clusterControllers =
+          await ClusterControllerManager.listClusterControllers(request)();
+      } catch {
+        clusterControllers = null;
+      }
+
+      const payload = {
         agents,
         applications,
         microservices,
         systemApplications,
         clusterControllers,
-      },
+      };
+
+      setError(false);
+      dispatch({
+        type: actions.UPDATE,
+        data: payload,
+      });
+      setLoading(false);
+      return payload;
+    };
+
+    refreshDataInFlightRef.current = run().finally(() => {
+      refreshDataInFlightRef.current = null;
     });
-    setLoading(false);
-  }, [isAuthenticated, request]);
+
+    return refreshDataInFlightRef.current;
+  }, [isAuthenticated, isControllerHealthy, request]);
 
   const refreshRuntimeLight = React.useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isControllerHealthy) {
       return;
     }
 
-    let agents = [];
-    try {
-      agents = await AgentManager.listAgents(request)();
-    } catch (e) {
-      setError(e);
-      return;
+    if (refreshRuntimeLightInFlightRef.current) {
+      return refreshRuntimeLightInFlightRef.current;
     }
 
-    let applications = [];
-    try {
-      applications = await ApplicationManager.listApplications(request)();
-    } catch (e) {
-      setError(e);
-      return;
-    }
+    const run = async () => {
+      let agents = [];
+      try {
+        agents = await AgentManager.listAgents(request)();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
 
-    let systemApplications = [];
-    try {
-      systemApplications =
-        await ApplicationManager.listSystemApplications(request)();
-    } catch (e) {
-      setError(e);
-      return;
-    }
+      let applications = [];
+      try {
+        applications = await ApplicationManager.listApplications(request)();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
 
-    setError(false);
-    dispatch({
-      type: actions.LIGHT_UPDATE,
-      data: { agents, applications, systemApplications },
+      let systemApplications = [];
+      try {
+        systemApplications =
+          await ApplicationManager.listSystemApplications(request)();
+      } catch (e) {
+        setError(e);
+        return null;
+      }
+
+      const payload = { agents, applications, systemApplications };
+
+      setError(false);
+      dispatch({
+        type: actions.LIGHT_UPDATE,
+        data: payload,
+      });
+      setLoading(false);
+      return payload;
+    };
+
+    refreshRuntimeLightInFlightRef.current = run().finally(() => {
+      refreshRuntimeLightInFlightRef.current = null;
     });
-    setLoading(false);
-  }, [isAuthenticated, request]);
+
+    return refreshRuntimeLightInFlightRef.current;
+  }, [isAuthenticated, isControllerHealthy, request]);
 
   React.useEffect(() => {
     if (isAuthenticated) {

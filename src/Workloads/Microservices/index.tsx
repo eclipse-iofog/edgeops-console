@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useData } from "@/app/providers";
-import ApplicationManager from "@/app/providers/Data/application-manager";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import CustomProgressBar from "@/components/ui/CustomProgressBar";
 import SlideOver from "@/components/ui/SlideOver";
@@ -37,7 +36,7 @@ import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 
 function MicroservicesList() {
-  const { data } = useData();
+  const { data, refreshData } = useData();
   const { request } = useController();
   const { pushFeedback } = useFeedback();
   const [selectedMs, setSelectedMs] = useState<any | null>(null);
@@ -109,10 +108,11 @@ function MicroservicesList() {
   const handleRefreshMicroservice = async () => {
     if (!selectedMs?.uuid) return;
     try {
-      const applications =
-        await ApplicationManager.listApplicationsWithMicroservices(request)();
+      const result = await refreshData();
+      if (!result) return;
+
       const reducedAgents = data?.reducedAgents?.byUUID ?? {};
-      const flattened = applications.flatMap((app: any) =>
+      const flattened = result.applications.flatMap((app: any) =>
         (app.microservices || []).map((ms: any) => ({
           ...ms,
           agentName: reducedAgents[ms.iofogUuid]?.name,
@@ -398,12 +398,12 @@ function MicroservicesList() {
   // Unified YAML upload hook
   // Microservices are managed by Data provider which polls automatically
   const refreshFunctions = React.useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, () => Promise<void>>();
     map.set("Microservice", async () => {
-      // Data provider will automatically refresh on next poll cycle
+      await refreshData();
     });
     return map;
-  }, []);
+  }, [refreshData]);
 
   const { processYamlFile: processUnifiedYaml } = useUnifiedYamlUpload({
     request,

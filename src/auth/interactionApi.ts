@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "@/lib/http/fetchWithTimeout";
 import { getApiV3BaseUrl } from "./api";
 
 export type InteractionStep =
@@ -85,7 +86,7 @@ async function parseStepResponse(
 export async function getInteractionStatus(
   uid: string,
 ): Promise<InteractionStepResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid));
+  const response = await fetchWithTimeout(interactionUrl(uid));
   return parseStepResponse(response, "Interaction session expired");
 }
 
@@ -94,7 +95,7 @@ export async function postInteractionLogin(
   identifier: string,
   password: string,
 ): Promise<InteractionStepResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/login"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: identifier, password }),
@@ -106,7 +107,7 @@ export async function postInteractionMfa(
   uid: string,
   code: string,
 ): Promise<InteractionStepResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/mfa"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/mfa"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
@@ -117,7 +118,7 @@ export async function postInteractionMfa(
 export async function postInteractionEnroll(
   uid: string,
 ): Promise<InteractionEnrollResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/enroll"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/enroll"), {
     method: "POST",
   });
   const data = await response.json().catch(() => null);
@@ -150,7 +151,7 @@ export async function postInteractionConfirmEnroll(
   uid: string,
   code: string,
 ): Promise<InteractionConfirmEnrollResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/confirm-enroll"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/confirm-enroll"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
@@ -182,7 +183,7 @@ export async function postInteractionChangePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<InteractionStepResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/change-password"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/change-password"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ currentPassword, newPassword }),
@@ -193,7 +194,7 @@ export async function postInteractionChangePassword(
 export async function postInteractionComplete(
   uid: string,
 ): Promise<InteractionCompleteResponse | InteractionError> {
-  const response = await fetch(interactionUrl(uid, "/complete"), {
+  const response = await fetchWithTimeout(interactionUrl(uid, "/complete"), {
     method: "POST",
   });
   const data = await response.json().catch(() => null);

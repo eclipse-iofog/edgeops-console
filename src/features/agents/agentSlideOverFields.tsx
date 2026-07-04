@@ -3,6 +3,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import ResourceLink from "@/components/ui/ResourceLink";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import {
+  formatAgentDiskUsage,
   formatArchitectureLabel,
   getTextColor,
   MiBFactor,
@@ -294,8 +295,7 @@ export const buildAgentSlideOverFields = (
     },
     {
       label: "Disk Usage",
-      render: (node: any) =>
-        `${prettyBytes(Number((node.diskUsage * MiBFactor)?.toFixed(2)) || 0)}`,
+      render: (node: any) => formatAgentDiskUsage(node.diskUsage),
     },
     {
       label: "System Available Disk",
@@ -552,7 +552,8 @@ export const buildAgentSlideOverFields = (
           app.microservices?.some((msvc: any) => msvc.iofogUuid === node.uuid),
         );
         const microservices =
-          AgentApplications?.flatMap((app: any) => app.microservices) || [];
+          AgentApplications?.flatMap((app: any) => app.microservices || [])
+            .filter((msvc: any) => msvc.iofogUuid === node.uuid) || [];
 
         if (!Array.isArray(microservices) || microservices.length === 0) {
           return (
@@ -727,9 +728,9 @@ export const buildAgentSlideOverFields = (
         );
 
         const microservices =
-          systemAgentApplications?.flatMap(
-            (app: any) => app.microservices || [],
-          ) || [];
+          systemAgentApplications
+            ?.flatMap((app: any) => app.microservices || [])
+            .filter((msvc: any) => msvc.iofogUuid === node.uuid) || [];
 
         if (!Array.isArray(microservices) || microservices.length === 0) {
           return (

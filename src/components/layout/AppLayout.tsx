@@ -18,6 +18,7 @@ import { isWorkbenchEligible } from "@/config/navigation";
 import GlobalTerminalDrawer from "@/components/terminal/GlobalTerminalDrawer";
 import AppSidebar from "./AppSidebar";
 import IamExternalBanner from "./IamExternalBanner";
+import ControllerUnreachableBanner from "./ControllerUnreachableBanner";
 import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
@@ -173,6 +174,7 @@ export default function AppLayout() {
             }}
           >
             <IamExternalBanner />
+            <ControllerUnreachableBanner />
             <PostLoginGate>
               <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <MainContent collapsed={collapsed} />

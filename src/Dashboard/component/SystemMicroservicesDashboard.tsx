@@ -1,6 +1,6 @@
 import React from "react";
 import { ServerCog } from "lucide-react";
-import ApexCharts from "react-apexcharts";
+import ResponsiveApexChart from "@/components/ui/ResponsiveApexChart";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 
 interface SystemMicroservicesDashboardProps {
@@ -401,7 +401,7 @@ const SystemMicroservicesDashboard: React.FC<
             <div className="text-xs sm:text-sm text-gray-400">Real-time</div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">
-            <ApexCharts
+            <ResponsiveApexChart
               options={donutChartOptions}
               series={donutChartSeries}
               type="donut"
@@ -412,7 +412,6 @@ const SystemMicroservicesDashboard: React.FC<
                     ? 300
                     : 250
               }
-              width="100%"
             />
           </div>
         </div>
@@ -426,7 +425,7 @@ const SystemMicroservicesDashboard: React.FC<
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">
-            <ApexCharts
+            <ResponsiveApexChart
               options={bubbleChartOptions}
               series={bubbleSeries}
               type="bubble"
@@ -437,7 +436,6 @@ const SystemMicroservicesDashboard: React.FC<
                     ? 300
                     : 250
               }
-              width="100%"
             />
           </div>
         </div>

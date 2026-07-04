@@ -1,5 +1,6 @@
 import type {
   FetchOptions,
+  ListFetchOptions,
   ResourceSnapshot,
   ResourceStore,
   ResponseLike,
@@ -14,8 +15,9 @@ const EMPTY_SNAPSHOT: ResourceSnapshot<unknown> = {
 };
 
 type CreateResourceStoreParams<T> = StoreDefinition & {
-  fetchItems: () => Promise<T[]>;
+  fetchItems: (options?: ListFetchOptions) => Promise<T[]>;
   getListPollingInterval: () => number;
+  shouldFetch: () => boolean;
 };
 
 function getValueAtPath(data: unknown, path: string): unknown {
@@ -38,14 +40,23 @@ export function createListFetcher<T>(
   endpoint: string,
   jsonPath: string,
   pushFeedback: (feedback: { message: string; type: "error" }) => void,
-): () => Promise<T[]> {
-  return async () => {
+  shouldFetch: () => boolean,
+): (options?: ListFetchOptions) => Promise<T[]> {
+  return async (options = {}) => {
+    const silent = options.silent ?? false;
+
+    if (!shouldFetch()) {
+      return [];
+    }
+
     const response = await request(endpoint);
     if (!response || !response.ok) {
-      pushFeedback({
-        message: response?.message ?? `Failed to fetch ${endpoint}`,
-        type: "error",
-      });
+      if (!silent && shouldFetch()) {
+        pushFeedback({
+          message: response?.message ?? `Failed to fetch ${endpoint}`,
+          type: "error",
+        });
+      }
       throw new Error(response?.message ?? `Failed to fetch ${endpoint}`);
     }
     const data = await response.json();
@@ -88,27 +99,42 @@ export function createResourceStore<T>(
 
   const schedulePoll = () => {
     clearPollTimer();
-    if (!pollingActive || subscriberCount === 0 || document.hidden) {
+    if (
+      !pollingActive ||
+      subscriberCount === 0 ||
+      document.hidden ||
+      !params.shouldFetch()
+    ) {
       return;
     }
 
     const interval = params.getListPollingInterval();
     pollTimer = setTimeout(async () => {
       pollTimer = null;
-      if (!pollingActive || subscriberCount === 0 || document.hidden) {
+      if (
+        !pollingActive ||
+        subscriberCount === 0 ||
+        document.hidden ||
+        !params.shouldFetch()
+      ) {
         return;
       }
       try {
         await fetch({ silent: true });
       } catch {
-        // fetch already reports feedback
+        // fetch already reports feedback when appropriate
       }
       schedulePoll();
     }, interval);
   };
 
   const updatePolling = () => {
-    if (pollingActive && subscriberCount > 0 && !document.hidden) {
+    if (
+      pollingActive &&
+      subscriberCount > 0 &&
+      !document.hidden &&
+      params.shouldFetch()
+    ) {
       schedulePoll();
     } else {
       clearPollTimer();
@@ -118,11 +144,19 @@ export function createResourceStore<T>(
   const fetch = async (options: FetchOptions = {}): Promise<void> => {
     const silent = options.silent ?? false;
 
+    if (!params.shouldFetch()) {
+      return;
+    }
+
     if (fetchInFlight) {
       return fetchInFlight;
     }
 
     fetchInFlight = (async () => {
+      if (!params.shouldFetch()) {
+        return;
+      }
+
       if (!silent && snapshot.items.length === 0) {
         setSnapshot({ ...snapshot, loading: true, error: null });
       } else if (silent) {
@@ -130,7 +164,10 @@ export function createResourceStore<T>(
       }
 
       try {
-        const items = await params.fetchItems();
+        const items = await params.fetchItems({ silent });
+        if (!params.shouldFetch()) {
+          return;
+        }
         setSnapshot({
           items,
           loading: false,
@@ -138,6 +175,9 @@ export function createResourceStore<T>(
           error: null,
         });
       } catch (error) {
+        if (!params.shouldFetch()) {
+          return;
+        }
         const message =
           error instanceof Error ? error.message : "Failed to fetch resource list";
         setSnapshot({
@@ -158,8 +198,10 @@ export function createResourceStore<T>(
     const wasZero = subscriberCount === 0;
     subscriberCount += 1;
 
-    if (wasZero) {
+    if (wasZero && params.shouldFetch()) {
       void fetch({ silent: snapshot.items.length > 0 });
+      updatePolling();
+    } else if (wasZero) {
       updatePolling();
     }
   };
