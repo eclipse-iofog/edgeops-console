@@ -27,7 +27,7 @@ export const parseConfigMap = async (doc) => {
   }
 
   const spec = lget(doc, "spec", {});
-  const data = lget(spec, "data", {});
+  const data = lget(doc, "data", {});
 
   const apiObject = {
     name: name,

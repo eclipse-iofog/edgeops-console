@@ -218,6 +218,11 @@ const GlobalTerminalDrawer = ({
           title: session.title + (session.isDirty ? " *" : ""),
           content: deployElement,
         });
+      } else {
+        const tab = deployTabsRef.current.get(session.id);
+        if (tab) {
+          tab.title = session.title + (session.isDirty ? " *" : "");
+        }
       }
       const tab = deployTabsRef.current.get(session.id);
       if (tab) {

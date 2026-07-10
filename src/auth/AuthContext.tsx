@@ -12,7 +12,7 @@ import React, {
 } from "react";
 import { tryConsumeOAuthCallbackFromLocation } from "./bootstrap";
 import { fetchProfile, postLogout, postRefresh } from "./api";
-import { isAccessTokenExpiringSoon } from "./jwt";
+import { getTokenSubject, isAccessTokenExpiringSoon } from "./jwt";
 import { clearPostLoginRedirect } from "./postLoginRedirect";
 import {
   clearTokens,
@@ -63,6 +63,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const session = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
   const sessionEpochRef = useRef(0);
+  const profileTokenKeyRef = useRef<string | null>(null);
   const [profile, setProfile] = useState<AuthProfile | undefined>();
   const [isSessionValidating, setIsSessionValidating] = useState(false);
 
@@ -80,10 +81,12 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (!accessToken) {
       setIsSessionValidating(false);
       setProfile(undefined);
+      profileTokenKeyRef.current = null;
       return;
     }
 
-    if (profile) {
+    const tokenKey = getTokenSubject(accessToken) ?? accessToken;
+    if (profileTokenKeyRef.current === tokenKey) {
       setIsSessionValidating(false);
       return;
     }
@@ -91,6 +94,8 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     let cancelled = false;
     const epoch = sessionEpochRef.current;
     setIsSessionValidating(true);
+    setProfile(undefined);
+
     void (async () => {
       const result = await fetchProfile(accessToken);
       if (cancelled || sessionEpochRef.current !== epoch) {
@@ -100,12 +105,14 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       if (result.unauthorized) {
         clearTokens();
         setProfile(undefined);
+        profileTokenKeyRef.current = null;
         setIsSessionValidating(false);
         return;
       }
 
       if (result.profile) {
         setProfile(result.profile);
+        profileTokenKeyRef.current = tokenKey;
       }
       setIsSessionValidating(false);
     })();
@@ -113,7 +120,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, profile]);
+  }, [accessToken]);
 
   const setSession = useCallback(
     (tokens: TokenPair, nextProfile?: AuthProfile) => {
@@ -128,6 +135,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const clearSession = useCallback(() => {
     sessionEpochRef.current += 1;
     refreshPromiseRef.current = null;
+    profileTokenKeyRef.current = null;
     clearTokens();
     setProfile(undefined);
     setIsSessionValidating(false);

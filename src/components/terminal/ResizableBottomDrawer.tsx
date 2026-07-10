@@ -323,7 +323,7 @@ const ResizableBottomDrawer = ({
                         )}
                       {tabs
                         .find((tab) => tab.id === activeTabId)
-                        ?.title?.includes("Deploy") &&
+                        ?.title?.includes("Application Template Form:") &&
                         isEdit && (
                           <button
                             onClick={onSave}

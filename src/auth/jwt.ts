@@ -38,6 +38,28 @@ export function enrichProfileFromToken(
   }
 }
 
+export function isAccessTokenExpired(token: string): boolean {
+  try {
+    const { exp } = jwtDecode<JwtPayload>(token);
+    if (!exp) {
+      return false;
+    }
+    return exp <= Date.now() / 1000;
+  } catch {
+    // Opaque or non-JWT access tokens — cannot infer expiry; treat as still valid
+    return false;
+  }
+}
+
+export function getTokenSubject(token: string): string | null {
+  try {
+    const { sub } = jwtDecode<JwtPayload>(token);
+    return typeof sub === "string" ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isAccessTokenExpiringSoon(
   token: string,
   thresholdSec = REFRESH_THRESHOLD_SEC,

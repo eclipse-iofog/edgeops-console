@@ -1,4 +1,5 @@
 import { readStorageWithMigration } from "@/lib/storage/migrateKey";
+import { isAccessTokenExpired } from "./jwt";
 
 export type TokenPair = {
   accessToken: string;
@@ -69,9 +70,17 @@ function readFromStorage(): TokenPair | null {
   }
 }
 
+function isStoredSessionUsable(tokens: TokenPair): boolean {
+  if (!isAccessTokenExpired(tokens.accessToken)) {
+    return true;
+  }
+  return Boolean(tokens.refreshToken);
+}
+
 /**
  * Restore tokens from sessionStorage before React/bootstrap runs.
  * Survives full-page redirects after OAuth callback.
+ * Discards expired access tokens when no refresh token is available.
  */
 export function hydrateTokensFromStorage(): void {
   if (accessToken) {
@@ -79,6 +88,10 @@ export function hydrateTokensFromStorage(): void {
   }
   const stored = readFromStorage();
   if (!stored) {
+    return;
+  }
+  if (!isStoredSessionUsable(stored)) {
+    persistToStorage(null);
     return;
   }
   accessToken = stored.accessToken;

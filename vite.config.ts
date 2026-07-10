@@ -1,15 +1,33 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, transformWithEsbuild } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const appVersion = (
+  JSON.parse(
+    readFileSync(path.join(rootDir, "package.json"), "utf8"),
+  ) as { version: string }
+).version;
 
 type Distribution = "datasance" | "iofog";
 
 function resolveDistribution(): Distribution {
   return process.env.VITE_DISTRIBUTION === "iofog" ? "iofog" : "datasance";
+}
+
+function controllerConfigCacheBust() {
+  return {
+    name: "controller-config-cache-bust",
+    transformIndexHtml(html: string) {
+      return html.replace(
+        'src="/controller-config.js"',
+        `src="/controller-config.js?v=${appVersion}"`,
+      );
+    },
+  };
 }
 
 function distributionBranding() {
@@ -57,7 +75,13 @@ function jsxInJs() {
 }
 
 export default defineConfig({
-  plugins: [distributionBranding(), jsxInJs(), react(), tailwindcss()],
+  plugins: [
+    controllerConfigCacheBust(),
+    distributionBranding(),
+    jsxInJs(),
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(rootDir, "src"),
