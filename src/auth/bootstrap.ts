@@ -1,4 +1,15 @@
-import { setTokens, type TokenPair } from "./tokenStore";
+import {
+  clearTokens,
+  hydrateTokensFromStorage,
+  hasSession,
+  setTokens,
+  type TokenPair,
+} from "./tokenStore";
+import {
+  applyLogoutSentinelIfPresent,
+  hasLogoutSentinel,
+  redirectToLoginAfterLogout,
+} from "./logoutRedirect";
 
 function buildHashUrl(origin: string, route: string): string {
   const path = route.startsWith("#") ? route.slice(1) : route;
@@ -111,4 +122,38 @@ export function runAuthBootstrap(): void {
   }
 
   tryConsumeOAuthCallbackFromLocation();
+}
+
+function clearSessionForBootstrap(): void {
+  clearTokens();
+}
+
+/**
+ * After explicit logout, drop resurrected tokens from bfcache or stale tabs.
+ */
+export function applyPostLogoutBootstrap(): void {
+  applyLogoutSentinelIfPresent(clearSessionForBootstrap);
+}
+
+/**
+ * bfcache can restore pre-logout in-memory auth; re-validate and hard-nav to login.
+ */
+export function installBfcacheSessionGuard(): void {
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) {
+      return;
+    }
+
+    if (hasLogoutSentinel()) {
+      applyLogoutSentinelIfPresent(clearSessionForBootstrap);
+      redirectToLoginAfterLogout();
+      return;
+    }
+
+    clearTokens();
+    hydrateTokensFromStorage();
+    if (!hasSession()) {
+      redirectToLoginAfterLogout();
+    }
+  });
 }

@@ -1,4 +1,4 @@
-import React, { type FC } from "react";
+import React, { useEffect, useState, type FC } from "react";
 import {
   Alert,
   Box,
@@ -8,10 +8,19 @@ import {
   Typography,
 } from "@mui/material";
 import { LOGO_ALT_TEXT, loginLogomark } from "../config/distribution";
+import {
+  consumeOAuthLoginErrorFromLocation,
+  type OAuthLoginError,
+} from "./oauthLoginError";
 import { buildOAuthAuthorizeUrl } from "./oauth";
 
 const LoginPage: FC = () => {
   const authorizeUrl = buildOAuthAuthorizeUrl();
+  const [oauthError, setOauthError] = useState<OAuthLoginError | null>(null);
+
+  useEffect(() => {
+    setOauthError(consumeOAuthLoginErrorFromLocation());
+  }, []);
 
   const handleSignIn = () => {
     if (authorizeUrl) {
@@ -52,6 +61,24 @@ const LoginPage: FC = () => {
             Continue to the Controller sign-in flow. Identity and MFA are
             handled by your configured auth mode.
           </Typography>
+
+          {oauthError ? (
+            <Alert
+              severity={oauthError.code === "login_required" ? "info" : "warning"}
+              sx={{ mb: 2 }}
+            >
+              {oauthError.message}
+              {import.meta.env.DEV && oauthError.detail ? (
+                <Typography
+                  component="span"
+                  variant="caption"
+                  sx={{ display: "block", mt: 1, opacity: 0.85 }}
+                >
+                  {oauthError.detail}
+                </Typography>
+              ) : null}
+            </Alert>
+          ) : null}
 
           {!authorizeUrl ? (
             <Alert severity="error" sx={{ mb: 2 }}>

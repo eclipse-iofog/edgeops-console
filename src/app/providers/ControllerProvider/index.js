@@ -189,10 +189,9 @@ export const ControllerProvider = ({ children }) => {
       }
 
       if (currentAuth?.hasRefreshToken) {
-        if (currentAuth?.logout) {
-          currentAuth.logout();
+        if (currentAuth?.signoutRedirect) {
+          void currentAuth.signoutRedirect();
         }
-        window.location.replace(`${window.location.origin}/#/login`);
       }
       return {
         ...errorData,

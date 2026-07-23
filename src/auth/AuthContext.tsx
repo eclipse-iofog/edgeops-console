@@ -15,6 +15,10 @@ import { fetchProfile, postLogout, postRefresh } from "./api";
 import { getTokenSubject, isAccessTokenExpiringSoon } from "./jwt";
 import { clearPostLoginRedirect } from "./postLoginRedirect";
 import {
+  markLogoutSentinel,
+  redirectToLoginAfterLogout,
+} from "./logoutRedirect";
+import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
@@ -77,6 +81,16 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   }, []);
 
+  const clearSession = useCallback(() => {
+    sessionEpochRef.current += 1;
+    refreshPromiseRef.current = null;
+    profileTokenKeyRef.current = null;
+    clearTokens();
+    setProfile(undefined);
+    setIsSessionValidating(false);
+    clearPostLoginRedirect();
+  }, []);
+
   useEffect(() => {
     if (!accessToken) {
       setIsSessionValidating(false);
@@ -103,10 +117,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       }
 
       if (result.unauthorized) {
-        clearTokens();
-        setProfile(undefined);
-        profileTokenKeyRef.current = null;
-        setIsSessionValidating(false);
+        clearSession();
         return;
       }
 
@@ -120,7 +131,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, clearSession]);
 
   const setSession = useCallback(
     (tokens: TokenPair, nextProfile?: AuthProfile) => {
@@ -131,16 +142,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     },
     [],
   );
-
-  const clearSession = useCallback(() => {
-    sessionEpochRef.current += 1;
-    refreshPromiseRef.current = null;
-    profileTokenKeyRef.current = null;
-    clearTokens();
-    setProfile(undefined);
-    setIsSessionValidating(false);
-    clearPostLoginRedirect();
-  }, []);
 
   const updateProfile = useCallback((nextProfile: AuthProfile) => {
     setProfile(nextProfile);
@@ -171,8 +172,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (token) {
       await postLogout(token);
     }
+    markLogoutSentinel();
     clearSession();
-    window.location.replace(`${window.location.origin}/#/login`);
+    redirectToLoginAfterLogout();
   }, [clearSession]);
 
   const runRefresh = useCallback(async (): Promise<boolean> => {
