@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearOAuthLoginErrorFromLocation,
   consumeOAuthLoginErrorFromLocation,
@@ -7,13 +7,6 @@ import {
 } from "./oauthLoginError";
 
 describe("oauthLoginError", () => {
-  beforeEach(() => {
-    vi.stubGlobal("history", {
-      ...history,
-      replaceState: vi.fn(),
-    });
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
