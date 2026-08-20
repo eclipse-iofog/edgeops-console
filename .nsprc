@@ -1,6 +1,2 @@
 {
-  "1124282": {
-    "active": true,
-    "notes": "GHSA-qwww-vcr4-c8h2 — RSC-mode CSRF only; EdgeOps Console uses Declarative HashRouter SPA, not RSC/Framework mode. Defer until react-router v8 migration."
-  }
 }
