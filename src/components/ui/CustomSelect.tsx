@@ -8,6 +8,7 @@ import Select, {
 type OptionType = {
   label: string;
   value: string;
+  isDisabled?: boolean;
 };
 
 type CustomSelectProps = {
@@ -62,6 +63,7 @@ export default function CustomSelect({
       value={selected as any}
       placeholder={placeholder}
       isClearable={isClearable}
+      isOptionDisabled={(option) => Boolean(option.isDisabled)}
       styles={{
         control: (provided) => ({
           ...provided,
@@ -76,8 +78,13 @@ export default function CustomSelect({
         singleValue: (provided) => ({ ...provided, color: "black" }),
         option: (provided, state) => ({
           ...provided,
-          backgroundColor: state.isFocused ? "#f0f0f0" : "white",
-          color: "black",
+          backgroundColor: state.isDisabled
+            ? "white"
+            : state.isFocused
+              ? "#f0f0f0"
+              : "white",
+          color: state.isDisabled ? "#9CA3AF" : "black",
+          cursor: state.isDisabled ? "not-allowed" : "default",
         }),
       }}
     />

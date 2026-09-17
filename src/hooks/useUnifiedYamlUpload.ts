@@ -222,6 +222,16 @@ export function useUnifiedYamlUpload({
         finalBody = cleanedPayload;
       }
 
+      if (
+        (kind === "Model" ||
+          kind === "RuntimeClass" ||
+          kind === "MicroserviceTemplate") &&
+        exists
+      ) {
+        const { name: _name, ...updateBody } = parsed;
+        finalBody = updateBody;
+      }
+
       const response = await request(finalEndpoint, {
         method: finalMethod as "POST" | "PATCH" | "PUT",
         headers: {

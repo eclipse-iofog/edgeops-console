@@ -8,6 +8,8 @@ import React, {
 
 export type TabType = "terminal" | "yaml-editor" | "deploy";
 
+export type DeployFormKind = "applicationTemplate" | "microserviceTemplate";
+
 export const MAX_EXEC_SESSIONS_PER_MICROSERVICE = 3;
 
 export interface TerminalSession {
@@ -42,6 +44,7 @@ export interface DeploySession {
   id: string;
   title: string;
   template: any;
+  kind?: DeployFormKind;
   onClose?: () => void;
   isActive: boolean;
   createdAt: number;

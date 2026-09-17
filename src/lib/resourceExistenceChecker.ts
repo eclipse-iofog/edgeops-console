@@ -174,6 +174,39 @@ export async function fetchExistingResources(
         }
         return [];
       }
+      case "Model": {
+        const response = await fetchListResponse("/api/v3/models", request);
+        if (response?.ok) {
+          const data = await response.json();
+          const models = data.models || data;
+          return Array.isArray(models) ? models : [];
+        }
+        return [];
+      }
+      case "RuntimeClass": {
+        const response = await fetchListResponse(
+          "/api/v3/runtimeClasses",
+          request,
+        );
+        if (response?.ok) {
+          const data = await response.json();
+          const runtimeClasses = data.runtimeClasses || data;
+          return Array.isArray(runtimeClasses) ? runtimeClasses : [];
+        }
+        return [];
+      }
+      case "MicroserviceTemplate": {
+        const response = await fetchListResponse(
+          "/api/v3/microserviceTemplates",
+          request,
+        );
+        if (response?.ok) {
+          const data = await response.json();
+          const templates = data.microserviceTemplates || data;
+          return Array.isArray(templates) ? templates : [];
+        }
+        return [];
+      }
       default:
         return [];
     }
@@ -218,6 +251,9 @@ function resourceExists(
       );
     case "NatsAccountRule":
     case "NatsUserRule":
+    case "Model":
+    case "RuntimeClass":
+    case "MicroserviceTemplate":
       return existingResources.some((r) => r.name === identifier);
     case "Registry":
       return existingResources.some(
@@ -340,6 +376,16 @@ export function getResourceEndpoint(
       return exists
         ? `/api/v3/nats/user-rules/${identifier}`
         : `/api/v3/nats/user-rules`;
+    case "Model":
+      return exists ? `/api/v3/models/${identifier}` : `/api/v3/models`;
+    case "RuntimeClass":
+      return exists
+        ? `/api/v3/runtimeClasses/${identifier}`
+        : `/api/v3/runtimeClasses`;
+    case "MicroserviceTemplate":
+      return exists
+        ? `/api/v3/microserviceTemplates/${identifier}`
+        : `/api/v3/microserviceTemplates`;
     default:
       return "";
   }
@@ -369,6 +415,9 @@ export function getResourceMethod(
     case "ServiceAccount":
     case "NatsAccountRule":
     case "NatsUserRule":
+    case "Model":
+    case "RuntimeClass":
+    case "MicroserviceTemplate":
       return "PATCH";
     case "CatalogItem":
     case "ApplicationTemplate":
@@ -429,6 +478,9 @@ export async function preloadResourceCache(
           break;
         case "NatsAccountRule":
         case "NatsUserRule":
+        case "Model":
+        case "RuntimeClass":
+        case "MicroserviceTemplate":
           identifier = resource.name;
           break;
         case "Registry":

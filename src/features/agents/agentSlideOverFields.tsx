@@ -13,6 +13,24 @@ import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { BadgeList } from "@/AccessControl/utils/badgeHelpers";
 import { formatAgentDuration } from "./formatAgentDuration";
 import { PlatformStatusBadge, ReconcileActionControl } from "@/lib/platformReconcile";
+import {
+  displayActiveModels,
+  displayFogValue,
+  formatTotalBytes,
+  formatUnixSeconds,
+  isManagedModelSource,
+  parseCdiDeviceNames,
+  parseModelStatusRows,
+  parseRuntimeClassRows,
+} from "./agentFogStatus";
+
+function noneFoundForAgent(resource: string) {
+  return (
+    <div className="text-sm text-gray-400">
+      No {resource} found for this agent.
+    </div>
+  );
+}
 
 const renderAgentTags = (tags: any) => {
   if (!tags) return "N/A";
@@ -388,6 +406,163 @@ export const buildAgentSlideOverFields = (
       },
     },
     {
+      label: "Applied Runtime Classes",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseRuntimeClassRows(node.runtimeClasses);
+        if (rows.length === 0) {
+          return noneFoundForAgent("runtime classes");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              return (
+                <ResourceLink
+                  path="/config/RuntimeClasses"
+                  query={{ runtimeClassName: row.name }}
+                >
+                  {row.name}
+                </ResourceLink>
+              );
+            },
+          },
+          {
+            key: "handler",
+            header: "Handler",
+            render: (row: any) => displayFogValue(row.handler),
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.handler].filter(Boolean).join("-") ||
+              "runtime-class"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "AI model status",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseModelStatusRows(node.modelStatus);
+        if (rows.length === 0) {
+          return noneFoundForAgent("AI models");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              if (!isManagedModelSource(row.source)) {
+                return <span>{row.name}</span>;
+              }
+              return (
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <ResourceLink
+                    path="/config/Models"
+                    query={{ modelName: row.name }}
+                  >
+                    {row.name}
+                  </ResourceLink>
+                  {row.uuid ? (
+                    <span className="text-xs text-gray-400">{row.uuid}</span>
+                  ) : null}
+                </span>
+              );
+            },
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+          {
+            key: "state",
+            header: "State",
+            render: (row: any) => displayFogValue(row.state),
+          },
+          {
+            key: "digest",
+            header: "Digest",
+            render: (row: any) => displayFogValue(row.digest),
+          },
+          {
+            key: "resolvedRevision",
+            header: "Resolved Revision",
+            render: (row: any) => displayFogValue(row.resolvedRevision),
+          },
+          {
+            key: "revisionFloating",
+            header: "Revision Floating",
+            render: (row: any) => displayFogValue(row.revisionFloating),
+          },
+          {
+            key: "totalBytes",
+            header: "Total Bytes",
+            render: (row: any) => formatTotalBytes(row.totalBytes),
+          },
+          {
+            key: "lastError",
+            header: "Last Error",
+            render: (row: any) => displayFogValue(row.lastError),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.digest, row.state]
+                .filter(Boolean)
+                .join("-") ||
+              "model-status"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "Active models",
+      render: (row: any) => displayActiveModels(row.activeModels),
+    },
+    {
+      label: "Model last update",
+      render: (row: any) => formatUnixSeconds(row.modelLastUpdate),
+    },
+    {
       label: "Status",
       render: () => "",
       isSectionHeader: true,
@@ -397,6 +572,16 @@ export const buildAgentSlideOverFields = (
       render: (row: any) => (
         <BadgeList items={row.availableRuntimes} emptyLabel="N/A" />
       ),
+    },
+    {
+      label: "Available CDI devices",
+      render: (row: any) => {
+        const devices = parseCdiDeviceNames(row.availableCdiDevices);
+        if (devices.length === 0) {
+          return noneFoundForAgent("CDI devices");
+        }
+        return <BadgeList items={devices} emptyLabel="N/A" />;
+      },
     },
     {
       label: "Runtime Agent Phase",

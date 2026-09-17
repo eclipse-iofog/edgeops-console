@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useData } from "@/app/providers";
+import { useData, useResourceList } from "@/app/providers";
 import CustomDataTable from "@/components/ui/CustomDataTable";
 import CustomProgressBar from "@/components/ui/CustomProgressBar";
 import SlideOver from "@/components/ui/SlideOver";
@@ -34,11 +34,17 @@ import LogConfigModal, {
 import { useAuth } from "../../auth";
 import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
+import { imageRegistryRejection } from "@/lib/registryCa";
+import MicroserviceAiModelsEditor from "./MicroserviceAiModelsEditor";
+import { importantContainerSpecFields } from "./importantContainerSpecFields";
+import { podIdSlideoverFields } from "./podIdSlideoverField";
 
 function MicroservicesList() {
   const { data, refreshData } = useData();
   const { request } = useController();
   const { pushFeedback } = useFeedback();
+  const { items: fleetModels } = useResourceList<any>("models");
+  const { items: registries } = useResourceList<any>("registries");
   const [selectedMs, setSelectedMs] = useState<any | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [editorDataChanged, setEditorDataChanged] = React.useState<any>();
@@ -369,6 +375,14 @@ function MicroservicesList() {
         throw new Error(err);
       }
       const newMicroservice = microserviceData;
+      const registryError = imageRegistryRejection(
+        registries as any[],
+        newMicroservice?.registryId,
+      );
+      if (registryError) {
+        pushFeedback({ message: registryError, type: "error" });
+        throw new Error(registryError);
+      }
       const res = await deployMicroservice(newMicroservice, method);
       if (!res || !res.ok) {
         try {
@@ -783,6 +797,7 @@ function MicroservicesList() {
         );
       },
     },
+    ...importantContainerSpecFields(),
     {
       label: "NATs Config",
       render: () => "",
@@ -900,6 +915,7 @@ function MicroservicesList() {
         </span>
       ),
     },
+    ...podIdSlideoverFields(selectedMs),
     {
       label: "Exec Status",
       render: (row: any) => {
@@ -1027,6 +1043,25 @@ function MicroservicesList() {
           />
         );
       },
+    },
+    {
+      label: "AI Models",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => (
+        <MicroserviceAiModelsEditor
+          uuid={row.uuid}
+          catalog={row.models}
+          models={fleetModels as any[]}
+          request={request}
+          pushFeedback={pushFeedback}
+          onSaved={handleRefreshMicroservice}
+        />
+      ),
     },
     {
       label: "Volumes",

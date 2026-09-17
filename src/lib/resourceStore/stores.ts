@@ -20,6 +20,17 @@ export const STORE_DEFINITIONS: StoreDefinition[] = [
     endpoint: "/api/v3/volumeMounts",
     jsonPath: "",
   },
+  { id: "models", endpoint: "/api/v3/models", jsonPath: "models" },
+  {
+    id: "runtimeClasses",
+    endpoint: "/api/v3/runtimeClasses",
+    jsonPath: "runtimeClasses",
+  },
+  {
+    id: "microserviceTemplates",
+    endpoint: "/api/v3/microserviceTemplates",
+    jsonPath: "microserviceTemplates",
+  },
   { id: "services", endpoint: "/api/v3/services", jsonPath: "" },
   {
     id: "applicationTemplates",

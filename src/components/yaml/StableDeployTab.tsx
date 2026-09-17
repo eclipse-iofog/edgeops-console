@@ -1,17 +1,20 @@
 import React, { useCallback, useRef, useEffect } from "react";
 import DeployApplicationTemplate from "@/Catalog/Application/DeployApplicationTemplate";
+import DeployMicroserviceTemplate from "@/Catalog/Microservice/DeployMicroserviceTemplate";
+import type { DeployFormKind } from "@/app/providers/Terminal/TerminalProvider";
 
 interface StableDeployTabProps {
   sessionId: string;
   template: any;
+  kind?: DeployFormKind;
   onClose: () => void;
   onDirtyChange: (isDirty: boolean) => void;
   onDeployFunctionChange?: (deployFunction: any) => void;
 }
 
 const StableDeployTab: React.FC<StableDeployTabProps> = ({
-  sessionId,
   template,
+  kind,
   onClose,
   onDirtyChange,
   onDeployFunctionChange,
@@ -21,11 +24,9 @@ const StableDeployTab: React.FC<StableDeployTabProps> = ({
   const handleDeployFunction = useCallback(
     (deployData: any) => {
       deployFunctionRef.current = deployData;
-      // Mark as dirty if there are changes
       const hasChanges = deployData.isValid && deployData.loading === false;
       onDirtyChange(hasChanges);
 
-      // Pass deploy function to parent for header button
       if (onDeployFunctionChange) {
         onDeployFunctionChange(deployData);
       }
@@ -33,7 +34,6 @@ const StableDeployTab: React.FC<StableDeployTabProps> = ({
     [onDirtyChange, onDeployFunctionChange],
   );
 
-  // Pass deploy function to parent whenever it changes
   useEffect(() => {
     if (onDeployFunctionChange && deployFunctionRef.current) {
       onDeployFunctionChange(deployFunctionRef.current);
@@ -42,11 +42,19 @@ const StableDeployTab: React.FC<StableDeployTabProps> = ({
 
   return (
     <div className="h-full flex flex-col">
-      <DeployApplicationTemplate
-        template={template}
-        close={onClose}
-        onDeploy={handleDeployFunction}
-      />
+      {kind === "microserviceTemplate" ? (
+        <DeployMicroserviceTemplate
+          template={template}
+          close={onClose}
+          onDeploy={handleDeployFunction}
+        />
+      ) : (
+        <DeployApplicationTemplate
+          template={template}
+          close={onClose}
+          onDeploy={handleDeployFunction}
+        />
+      )}
     </div>
   );
 };

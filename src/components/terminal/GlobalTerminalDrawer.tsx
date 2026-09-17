@@ -100,10 +100,11 @@ const GlobalTerminalDrawer = ({
 
   // Handle deploy confirm
   const handleDeployConfirm = useCallback(async () => {
-    if (deployFunction?.deployApplication) {
-      await deployFunction.deployApplication();
+    const runDeploy =
+      deployFunction?.deploy ?? deployFunction?.deployApplication;
+    if (runDeploy) {
+      await runDeploy();
       setShowDeployConfirmModal(false);
-      // Mark session as clean after successful deployment
       if (activeDeploySession) {
         updateDeploySession(activeDeploySession.id, false);
       }
@@ -201,6 +202,7 @@ const GlobalTerminalDrawer = ({
           <StableDeployTab
             sessionId={session.id}
             template={session.template}
+            kind={session.kind}
             onClose={() => {
               handleRemoveSession(session.id);
             }}
@@ -397,6 +399,9 @@ const GlobalTerminalDrawer = ({
   // Generate dynamic title based on active session
   const getTitle = () => {
     if (activeDeploySession) {
+      if (activeDeploySession.kind === "microserviceTemplate") {
+        return `Editing Deploy a microservice from ${activeDeploySession.template?.name} Template`;
+      }
       return `Editing Deploy an application from ${activeDeploySession.template?.name} Template`;
     }
     if (activeYamlSession) {
@@ -437,7 +442,11 @@ const GlobalTerminalDrawer = ({
         onCancel={() => setShowDeployConfirmModal(false)}
         onConfirm={handleDeployConfirm}
         title={`Deploy ${activeDeploySession?.template?.name}`}
-        message={`Are you sure you want to deploy an Application from "${activeDeploySession?.template?.name}" Application Template? This will create a new application instance.`}
+        message={
+          activeDeploySession?.kind === "microserviceTemplate"
+            ? `Are you sure you want to deploy a Microservice from "${activeDeploySession?.template?.name}" Microservice Template? This will create a new microservice instance.`
+            : `Are you sure you want to deploy an Application from "${activeDeploySession?.template?.name}" Application Template? This will create a new application instance.`
+        }
         cancelLabel="Cancel"
         confirmLabel="Deploy"
       />

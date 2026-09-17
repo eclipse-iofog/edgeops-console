@@ -34,6 +34,7 @@ import LogConfigModal, {
 import { useAuth } from "../../auth";
 import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
+import { podIdSlideoverFields } from "../Microservices/podIdSlideoverField";
 
 function SystemMicroserviceList() {
   const { data, refreshData } = useData();
@@ -875,6 +876,7 @@ function SystemMicroserviceList() {
         </span>
       ),
     },
+    ...podIdSlideoverFields(selectedMs),
     {
       label: "Exec Status",
       render: (row: any) => (
