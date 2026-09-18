@@ -35,6 +35,7 @@ import { useAuth } from "../../auth";
 import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 import { podIdSlideoverFields } from "../Microservices/podIdSlideoverField";
+import { microserviceCrashSlideoverFields } from "../Microservices/microserviceCrashStatusFields";
 
 function SystemMicroserviceList() {
   const { data, refreshData } = useData();
@@ -849,18 +850,7 @@ function SystemMicroserviceList() {
         );
       },
     },
-    {
-      label: "Error Messages",
-      render: (node: any) => {
-        return node.status.errorMessage ? (
-          <span className="text-white whitespace-pre-wrap break-words">
-            {node.status?.errorMessage}
-          </span>
-        ) : (
-          "N/A"
-        );
-      },
-    },
+    ...microserviceCrashSlideoverFields(selectedMs),
     {
       label: "Exec Session Ids",
       render: (row: any) => renderExecSessionIds(row.status.execSessionIds),

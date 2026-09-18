@@ -38,6 +38,7 @@ import { imageRegistryRejection } from "@/lib/registryCa";
 import MicroserviceAiModelsEditor from "./MicroserviceAiModelsEditor";
 import { importantContainerSpecFields } from "./importantContainerSpecFields";
 import { podIdSlideoverFields } from "./podIdSlideoverField";
+import { microserviceCrashSlideoverFields } from "./microserviceCrashStatusFields";
 
 function MicroservicesList() {
   const { data, refreshData } = useData();
@@ -888,18 +889,7 @@ function MicroservicesList() {
         );
       },
     },
-    {
-      label: "Error Messages",
-      render: (node: any) => {
-        return node.status.errorMessage ? (
-          <span className="text-white whitespace-pre-wrap break-words">
-            {node.status?.errorMessage}
-          </span>
-        ) : (
-          "N/A"
-        );
-      },
-    },
+    ...microserviceCrashSlideoverFields(selectedMs),
     {
       label: "Exec Session Ids",
       render: (row: any) => renderExecSessionIds(row.status.execSessionIds),
