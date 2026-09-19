@@ -36,6 +36,12 @@ import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 import { podIdSlideoverFields } from "../Microservices/podIdSlideoverField";
 import { microserviceCrashSlideoverFields } from "../Microservices/microserviceCrashStatusFields";
+import {
+  MICROSERVICE_DELETE_MESSAGE,
+  VOLUME_MAPPING_DELETE_MESSAGE,
+  canDeleteVolumeMapping,
+  toVolumeMappingRow,
+} from "../Microservices/volumeMappingRows";
 
 function SystemMicroserviceList() {
   const { data, refreshData } = useData();
@@ -1011,13 +1017,7 @@ function SystemMicroserviceList() {
           );
         }
 
-        const volumesData = volumes.map((volume: any, index: number) => ({
-          host: volume.hostDestination,
-          container: volume.containerDestination,
-          accessMode: volume.accessMode,
-          type: volume.type || "-",
-          key: `${volume.hostDestination}-${volume.containerDestination}-${index}`,
-        }));
+        const volumesData = volumes.map(toVolumeMappingRow);
 
         const volumeColumns = [
           {
@@ -1049,10 +1049,18 @@ function SystemMicroserviceList() {
             ),
           },
           {
+            key: "scope",
+            header: "Scope",
+            formatter: ({ row }: any) => (
+              <span className="text-white">{row.scope}</span>
+            ),
+          },
+          {
             key: "action",
             header: "Action",
             render: (row: any) => {
               if (node.isController) return null;
+              if (!canDeleteVolumeMapping(row.type)) return null;
               return (
                 <button
                   onClick={() => setSelectedVolume(row)}
@@ -1307,9 +1315,7 @@ function SystemMicroserviceList() {
         onCancel={() => setShowDeleteConfirmModal(false)}
         onConfirm={handleDelete}
         title={`Delete ${selectedMs?.name}`}
-        message={
-          "This action will remove the microservice from the system. All data and configurations will be lost. This is not reversible."
-        }
+        message={MICROSERVICE_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />
@@ -1329,9 +1335,7 @@ function SystemMicroserviceList() {
         onCancel={() => setShowVolumeDeleteConfirmModal(false)}
         onConfirm={handleVolumeDelete}
         title={`Delete Volume ${selectedVolume?.host}`}
-        message={
-          "This action will remove the volume from the microservice. This is not reversible."
-        }
+        message={VOLUME_MAPPING_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />

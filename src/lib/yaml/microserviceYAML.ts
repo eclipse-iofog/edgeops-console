@@ -208,6 +208,17 @@ const buildImagesYaml = (ms: any): Record<string, unknown> => {
   );
 };
 
+const cleanVolumeMapping = (vm: any) => {
+  const { id, ...rest } = vm || {};
+  if (
+    rest.scope == null ||
+    (typeof rest.scope === "string" && rest.scope.trim() === "")
+  ) {
+    delete rest.scope;
+  }
+  return rest;
+};
+
 const cleanEnv = (env: any) => {
   const { id, ...rest } = env;
   const cleanedEnv: any = { ...rest };
@@ -253,10 +264,7 @@ export const buildMicroserviceContainerYaml = (
     shmSize: dumpNumberOrEmpty(ms?.shmSize),
     cdiDevices: asArray(ms?.cdiDevices),
     devices: asArray(ms?.devices),
-    volumes: asArray(ms?.volumeMappings).map((vm: any) => {
-      const { id, ...rest } = vm;
-      return rest;
-    }),
+    volumes: asArray(ms?.volumeMappings).map(cleanVolumeMapping),
     tmpfs: asArray(ms?.tmpfs),
     extraHosts: asArray(ms?.extraHosts).map((eH: any) => {
       const { id, ...rest } = eH;

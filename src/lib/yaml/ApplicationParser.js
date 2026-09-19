@@ -78,6 +78,25 @@ export const normalizeTemplateVariables = (variables) => {
   return undefined;
 };
 
+const parseVolumeMappings = (volumes) => {
+  if (!volumes || !Array.isArray(volumes)) {
+    return volumes;
+  }
+  return volumes.map((vm) => {
+    if (!vm || typeof vm !== "object") {
+      return vm;
+    }
+    const mapped = { ...vm };
+    if (
+      mapped.scope == null ||
+      (typeof mapped.scope === "string" && mapped.scope.trim() === "")
+    ) {
+      delete mapped.scope;
+    }
+    return mapped;
+  });
+};
+
 const parseTemplateRef = (template) => {
   if (template == null) {
     return undefined;
@@ -228,7 +247,7 @@ export const parseMicroservice = async (microservice, options = {}) => {
         }))
       : undefined,
     volumeMappings: hasContainer
-      ? lget(microservice, "container.volumes", [])
+      ? parseVolumeMappings(lget(microservice, "container.volumes", []))
       : undefined,
     commands,
     env: hasContainer

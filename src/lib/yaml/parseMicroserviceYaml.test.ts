@@ -281,6 +281,146 @@ spec:
     expect(Object.values(ms)).not.toContain(null);
   });
 
+  it("parses container.volumes scope when present and omits it when absent", async () => {
+    const withScope = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: test-app/nodered
+spec:
+  application: test-app
+  container:
+    volumes:
+      - hostDestination: nodered-config
+        containerDestination: /data
+        accessMode: rw
+        type: volume
+        scope: Shared
+      - hostDestination: /var/run/secrets
+        containerDestination: /var/run/secrets
+        accessMode: ro
+        type: bind
+    env: []
+`);
+
+    expect(withScope.errors).toEqual([]);
+    expect(withScope.resources[0].parsed.volumeMappings).toEqual([
+      {
+        hostDestination: "nodered-config",
+        containerDestination: "/data",
+        accessMode: "rw",
+        type: "volume",
+        scope: "Shared",
+      },
+      {
+        hostDestination: "/var/run/secrets",
+        containerDestination: "/var/run/secrets",
+        accessMode: "ro",
+        type: "bind",
+      },
+    ]);
+
+    const withoutScope = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: test-app/nodered
+spec:
+  application: test-app
+  container:
+    volumes:
+      - hostDestination: nodered-config
+        containerDestination: /data
+        accessMode: rw
+        type: volume
+        scope:
+    env: []
+`);
+
+    expect(withoutScope.errors).toEqual([]);
+    expect(withoutScope.resources[0].parsed.volumeMappings[0]).toEqual({
+      hostDestination: "nodered-config",
+      containerDestination: "/data",
+      accessMode: "rw",
+      type: "volume",
+    });
+    expect(withoutScope.resources[0].parsed.volumeMappings[0]).not.toHaveProperty(
+      "scope",
+    );
+
+    const nested = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Application
+metadata:
+  name: test-app
+spec:
+  microservices:
+    - name: nodered
+      container:
+        volumes:
+          - hostDestination: nodered-config
+            containerDestination: /data
+            accessMode: rw
+            type: volume
+            scope: shared
+        env: []
+`);
+    expect(nested.errors).toEqual([]);
+    expect(nested.resources[0].parsed.microservices[0].volumeMappings[0].scope).toBe(
+      "shared",
+    );
+  });
+
+  it("dumps volume mapping scope only when provided", () => {
+    const dumpedWithScope = getMicroserviceYAMLFromJSON({
+      microservice: {
+        name: "ms-a",
+        volumeMappings: [
+          {
+            id: 12,
+            hostDestination: "nodered-config",
+            containerDestination: "/data",
+            accessMode: "rw",
+            type: "volume",
+            scope: "shared",
+          },
+        ],
+      },
+    });
+    expect(dumpedWithScope.spec.container.volumes).toEqual([
+      {
+        hostDestination: "nodered-config",
+        containerDestination: "/data",
+        accessMode: "rw",
+        type: "volume",
+        scope: "shared",
+      },
+    ]);
+
+    const dumpedWithoutScope = getMicroserviceYAMLFromJSON({
+      microservice: {
+        name: "ms-a",
+        volumeMappings: [
+          {
+            hostDestination: "nodered-config",
+            containerDestination: "/data",
+            accessMode: "rw",
+            type: "volume",
+          },
+        ],
+      },
+    });
+    expect(dumpedWithoutScope.spec.container.volumes[0]).toEqual({
+      hostDestination: "nodered-config",
+      containerDestination: "/data",
+      accessMode: "rw",
+      type: "volume",
+    });
+    expect(dumpedWithoutScope.spec.container.volumes[0]).not.toHaveProperty(
+      "scope",
+    );
+  });
+
   it("annotates set number fields and dumps nested application MS in the same order", () => {
     const dumped = dumpMicroserviceYAML({
       microservice: {
