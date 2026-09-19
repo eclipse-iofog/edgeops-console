@@ -39,6 +39,12 @@ import MicroserviceAiModelsEditor from "./MicroserviceAiModelsEditor";
 import { importantContainerSpecFields } from "./importantContainerSpecFields";
 import { podIdSlideoverFields } from "./podIdSlideoverField";
 import { microserviceCrashSlideoverFields } from "./microserviceCrashStatusFields";
+import {
+  MICROSERVICE_DELETE_MESSAGE,
+  VOLUME_MAPPING_DELETE_MESSAGE,
+  canDeleteVolumeMapping,
+  toVolumeMappingRow,
+} from "./volumeMappingRows";
 
 function MicroservicesList() {
   const { data, refreshData } = useData();
@@ -201,12 +207,15 @@ function MicroservicesList() {
 
   const handleVolumeDelete = async () => {
     try {
-      const res = await request(`/api/v3/microservices/${selectedMs.uuid}`, {
-        method: "DELETE",
-        headers: {
-          "content-type": "application/json",
+      const res = await request(
+        `/api/v3/microservices/${selectedMs.uuid}/volume-mapping/${selectedVolume?.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+          },
         },
-      });
+      );
       if (!res.ok) {
         pushFeedback({ message: res.message, type: "error" });
       } else {
@@ -1072,13 +1081,7 @@ function MicroservicesList() {
           );
         }
 
-        const volumesData = volumes.map((volume: any, index: number) => ({
-          host: volume.hostDestination,
-          container: volume.containerDestination,
-          accessMode: volume.accessMode,
-          type: volume.type || "-",
-          key: `${volume.hostDestination}-${volume.containerDestination}-${index}`,
-        }));
+        const volumesData = volumes.map(toVolumeMappingRow);
 
         const volumeColumns = [
           {
@@ -1110,9 +1113,17 @@ function MicroservicesList() {
             ),
           },
           {
+            key: "scope",
+            header: "Scope",
+            formatter: ({ row }: any) => (
+              <span className="text-white">{row.scope}</span>
+            ),
+          },
+          {
             key: "action",
             header: "Action",
             render: (row: any) => {
+              if (!canDeleteVolumeMapping(row.type)) return null;
               return (
                 <button
                   onClick={() => setSelectedVolume(row)}
@@ -1363,9 +1374,7 @@ function MicroservicesList() {
         onCancel={() => setShowDeleteConfirmModal(false)}
         onConfirm={handleDelete}
         title={`Deleting Microservice ${selectedMs?.name}`}
-        message={
-          "This action will remove the microservice from the system. All data and configurations will be lost. This is not reversible."
-        }
+        message={MICROSERVICE_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />
@@ -1385,9 +1394,7 @@ function MicroservicesList() {
         onCancel={() => setShowVolumeDeleteConfirmModal(false)}
         onConfirm={handleVolumeDelete}
         title={`Deleting Volume ${selectedVolume?.host}`}
-        message={
-          "This action will remove the volume from the microservice. This is not reversible."
-        }
+        message={VOLUME_MAPPING_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />
