@@ -36,6 +36,7 @@ import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
 import { imageRegistryRejection } from "@/lib/registryCa";
 import MicroserviceAiModelsEditor from "./MicroserviceAiModelsEditor";
+import MicroserviceKnowledgeEditor from "./MicroserviceKnowledgeEditor";
 import { importantContainerSpecFields } from "./importantContainerSpecFields";
 import { podIdSlideoverFields } from "./podIdSlideoverField";
 import { microserviceCrashSlideoverFields } from "./microserviceCrashStatusFields";
@@ -51,6 +52,7 @@ function MicroservicesList() {
   const { request } = useController();
   const { pushFeedback } = useFeedback();
   const { items: fleetModels } = useResourceList<any>("models");
+  const { items: fleetKnowledge } = useResourceList<any>("knowledge");
   const { items: registries } = useResourceList<any>("registries");
   const [selectedMs, setSelectedMs] = useState<any | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -1056,6 +1058,30 @@ function MicroservicesList() {
           uuid={row.uuid}
           catalog={row.models}
           models={fleetModels as any[]}
+          request={request}
+          pushFeedback={pushFeedback}
+          onSaved={handleRefreshMicroservice}
+        />
+      ),
+    },
+    {
+      label: "AI Knowledge Catalog",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => (
+        <MicroserviceKnowledgeEditor
+          uuid={row.uuid}
+          catalog={row.knowledge}
+          knowledge={fleetKnowledge as any[]}
+          neighbors={{
+            models: row.models,
+            volumeMappings: row.volumeMappings,
+            tmpfs: row.tmpfs,
+          }}
           request={request}
           pushFeedback={pushFeedback}
           onSaved={handleRefreshMicroservice}
