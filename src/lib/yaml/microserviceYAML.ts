@@ -183,6 +183,51 @@ const dumpModels = (models: unknown): Record<string, unknown> => {
   return {};
 };
 
+const dumpKnowledgeItems = (items: unknown): unknown[] => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.flatMap((item) => {
+    if (typeof item === "string") {
+      return [{ name: item }];
+    }
+    if (
+      item &&
+      typeof item === "object" &&
+      !Array.isArray(item) &&
+      (item as { name?: unknown }).name != null
+    ) {
+      return [{ name: (item as { name: unknown }).name }];
+    }
+    return [];
+  });
+};
+
+const dumpKnowledge = (knowledge: unknown): Record<string, unknown> => {
+  if (!knowledge || typeof knowledge !== "object" || Array.isArray(knowledge)) {
+    return {};
+  }
+  const catalog = knowledge as Record<string, unknown>;
+  const items = Array.isArray(catalog.items)
+    ? dumpKnowledgeItems(catalog.items)
+    : undefined;
+  const hasItems = Array.isArray(items) && items.length > 0;
+  if (!(hasItems || catalog.bindPath || catalog.permissions)) {
+    return {};
+  }
+  const dumped: Record<string, unknown> = {};
+  if (catalog.bindPath) {
+    dumped.bindPath = catalog.bindPath;
+  }
+  if (catalog.permissions) {
+    dumped.permissions = catalog.permissions;
+  }
+  if (items) {
+    dumped.items = items;
+  }
+  return dumped;
+};
+
 const resolveAgentName = (
   ms: any,
   activeAgents: Agent[],
@@ -330,6 +375,7 @@ export const buildMicroserviceYamlFields = (
       : {}),
   };
   spec.models = dumpModels(ms?.models);
+  spec.knowledge = dumpKnowledge(ms?.knowledge);
   spec.container = buildMicroserviceContainerYaml(ms, reducedAgents);
   spec.schedule = ms?.schedule ?? 50;
   spec.config = parseConfig(ms?.config);

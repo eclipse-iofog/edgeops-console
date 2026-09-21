@@ -97,6 +97,40 @@ const parseVolumeMappings = (volumes) => {
   });
 };
 
+const parseKnowledgeCatalog = (knowledge) => {
+  if (
+    knowledge == null ||
+    typeof knowledge !== "object" ||
+    Array.isArray(knowledge)
+  ) {
+    return undefined;
+  }
+  const catalog = {};
+  if (knowledge.bindPath != null) {
+    catalog.bindPath = knowledge.bindPath;
+  }
+  if (knowledge.permissions != null) {
+    catalog.permissions = knowledge.permissions;
+  }
+  if (Array.isArray(knowledge.items)) {
+    catalog.items = knowledge.items.flatMap((item) => {
+      if (typeof item === "string") {
+        return [{ name: item }];
+      }
+      if (
+        item &&
+        typeof item === "object" &&
+        !Array.isArray(item) &&
+        item.name != null
+      ) {
+        return [{ name: item.name }];
+      }
+      return [];
+    });
+  }
+  return catalog;
+};
+
 const parseTemplateRef = (template) => {
   if (template == null) {
     return undefined;
@@ -260,6 +294,7 @@ export const parseMicroservice = async (microservice, options = {}) => {
     rebuild: microservice.rebuild,
     application: microservice.application,
     models: microservice.models,
+    knowledge: parseKnowledgeCatalog(microservice.knowledge),
     template: parseTemplateRef(microservice.template),
     runAsUser: pickContainerOrTop(microservice, container, "runAsUser"),
     runAsGroup: pickContainerOrTop(microservice, container, "runAsGroup"),
