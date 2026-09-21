@@ -17,7 +17,7 @@ import {
   displayActiveModels,
   displayFogValue,
   formatTotalBytes,
-  formatUnixSeconds,
+  formatUnixMilliseconds,
   isManagedModelSource,
   parseCdiDeviceNames,
   parseModelStatusRows,
@@ -560,7 +560,107 @@ export const buildAgentSlideOverFields = (
     },
     {
       label: "Model last update",
-      render: (row: any) => formatUnixSeconds(row.modelLastUpdate),
+      render: (row: any) => formatUnixMilliseconds(row.modelLastUpdate),
+    },
+    {
+      label: "AI Knowledge status",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseModelStatusRows(node.knowledgeStatus);
+        if (rows.length === 0) {
+          return noneFoundForAgent("Knowledge");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              if (!isManagedModelSource(row.source)) {
+                return <span>{row.name}</span>;
+              }
+              return (
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <ResourceLink
+                    path="/config/Knowledge"
+                    query={{ knowledgeName: row.name }}
+                  >
+                    {row.name}
+                  </ResourceLink>
+                  {row.uuid ? (
+                    <span className="text-xs text-gray-400">{row.uuid}</span>
+                  ) : null}
+                </span>
+              );
+            },
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+          {
+            key: "state",
+            header: "State",
+            render: (row: any) => displayFogValue(row.state),
+          },
+          {
+            key: "digest",
+            header: "Digest",
+            render: (row: any) => displayFogValue(row.digest),
+          },
+          {
+            key: "resolvedRevision",
+            header: "Resolved Revision",
+            render: (row: any) => displayFogValue(row.resolvedRevision),
+          },
+          {
+            key: "revisionFloating",
+            header: "Revision Floating",
+            render: (row: any) => displayFogValue(row.revisionFloating),
+          },
+          {
+            key: "totalBytes",
+            header: "Total Bytes",
+            render: (row: any) => formatTotalBytes(row.totalBytes),
+          },
+          {
+            key: "lastError",
+            header: "Last Error",
+            render: (row: any) => displayFogValue(row.lastError),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.digest, row.state]
+                .filter(Boolean)
+                .join("-") ||
+              "knowledge-status"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "Active knowledge",
+      render: (row: any) => displayActiveModels(row.activeKnowledge),
+    },
+    {
+      label: "Knowledge last update",
+      render: (row: any) => formatUnixMilliseconds(row.knowledgeLastUpdate),
     },
     {
       label: "Status",

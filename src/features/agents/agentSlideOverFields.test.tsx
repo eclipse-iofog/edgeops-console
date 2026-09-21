@@ -89,11 +89,84 @@ describe("agent fog status fields", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses activeModels and formats model last update", () => {
+  it("uses activeModels and formats model last update in milliseconds", () => {
     renderLabeled("Active models", { activeModels: 2, modelStatus: "[{},{}]" });
     expect(screen.getByText("2")).toBeInTheDocument();
 
+    renderLabeled("Model last update", { modelLastUpdate: 1_700_000_000_000 });
+    expect(screen.getByText(/2023/)).toBeInTheDocument();
+
     renderLabeled("Model last update", { modelLastUpdate: 0 });
     expect(screen.getByText("N/A")).toBeInTheDocument();
+  });
+
+  it("links managed Knowledge names and leaves local rows as text", () => {
+    renderField("AI Knowledge status", {
+      knowledgeStatus: JSON.stringify([
+        {
+          name: "product-docs",
+          uuid: "knowledge-uuid-1",
+          source: "managed",
+          state: "ready",
+        },
+        { name: "local-docs", source: "local", state: "cached" },
+      ]),
+    });
+
+    expect(screen.getByRole("link", { name: "product-docs" })).toHaveAttribute(
+      "href",
+      "/config/Knowledge?knowledgeName=product-docs",
+    );
+    expect(screen.getByText("knowledge-uuid-1")).toBeInTheDocument();
+    const localName = screen.getByText("local-docs");
+    expect(localName.closest("a")).toBeNull();
+    expect(localName.parentElement?.textContent).toBe("local-docs");
+  });
+
+  it("shows none-found copy for empty Knowledge status", () => {
+    renderField("AI Knowledge status", { knowledgeStatus: "[]" });
+    expect(
+      screen.getByText("No Knowledge found for this agent."),
+    ).toBeInTheDocument();
+
+    renderField("AI Knowledge status", { knowledgeStatus: "not-json" });
+    expect(
+      screen.getAllByText("No Knowledge found for this agent.").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("uses activeKnowledge and formats knowledge last update in milliseconds", () => {
+    renderLabeled("Active knowledge", {
+      activeKnowledge: 1,
+      knowledgeStatus: "[{},{}]",
+    });
+    expect(screen.getByText("1")).toBeInTheDocument();
+
+    renderLabeled("Knowledge last update", { knowledgeLastUpdate: 0 });
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+
+    renderLabeled("Knowledge last update", {
+      knowledgeLastUpdate: 1_700_000_000_000,
+    });
+    expect(screen.getByText(/2023/)).toBeInTheDocument();
+  });
+
+  it("places Knowledge status after model last update and before Status", () => {
+    const labels = buildAgentSlideOverFields({}).map((field) => field.label);
+    const modelUpdate = labels.indexOf("Model last update");
+    const knowledge = labels.indexOf("AI Knowledge status");
+    const activeKnowledge = labels.indexOf("Active knowledge");
+    const knowledgeUpdate = labels.indexOf("Knowledge last update");
+    const status = labels.findIndex(
+      (label, index) => label === "Status" && index > knowledgeUpdate,
+    );
+    const availableRuntimes = labels.indexOf("Available Runtimes");
+
+    expect(modelUpdate).toBeGreaterThan(-1);
+    expect(knowledge).toBeGreaterThan(modelUpdate);
+    expect(activeKnowledge).toBeGreaterThan(knowledge);
+    expect(knowledgeUpdate).toBeGreaterThan(activeKnowledge);
+    expect(status).toBeGreaterThan(knowledgeUpdate);
+    expect(availableRuntimes).toBeGreaterThan(status);
   });
 });
