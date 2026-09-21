@@ -21,6 +21,7 @@ export const STORE_DEFINITIONS: StoreDefinition[] = [
     jsonPath: "",
   },
   { id: "models", endpoint: "/api/v3/models", jsonPath: "models" },
+  { id: "knowledge", endpoint: "/api/v3/knowledge", jsonPath: "knowledge" },
   {
     id: "runtimeClasses",
     endpoint: "/api/v3/runtimeClasses",
