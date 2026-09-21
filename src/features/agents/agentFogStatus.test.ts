@@ -4,7 +4,7 @@ import {
   displayActiveModels,
   displayFogValue,
   formatTotalBytes,
-  formatUnixSeconds,
+  formatUnixMilliseconds,
   isManagedModelSource,
   parseCdiDeviceNames,
   parseModelStatusRows,
@@ -29,17 +29,27 @@ describe("displayFogValue", () => {
   });
 });
 
-describe("formatUnixSeconds", () => {
-  it("shows N/A for missing or zero timestamps", () => {
-    expect(formatUnixSeconds(undefined)).toBe("N/A");
-    expect(formatUnixSeconds(0)).toBe("N/A");
-    expect(formatUnixSeconds("0")).toBe("N/A");
+describe("formatUnixMilliseconds", () => {
+  it("shows N/A for missing, blank, zero, or non-finite timestamps", () => {
+    expect(formatUnixMilliseconds(undefined)).toBe("N/A");
+    expect(formatUnixMilliseconds(null)).toBe("N/A");
+    expect(formatUnixMilliseconds("")).toBe("N/A");
+    expect(formatUnixMilliseconds(0)).toBe("N/A");
+    expect(formatUnixMilliseconds("0")).toBe("N/A");
+    expect(formatUnixMilliseconds(Number.NaN)).toBe("N/A");
+    expect(formatUnixMilliseconds(Number.POSITIVE_INFINITY)).toBe("N/A");
   });
 
-  it("formats Unix seconds as a local datetime", () => {
-    const formatted = formatUnixSeconds(1_700_000_000);
+  it("formats Unix milliseconds as a local datetime", () => {
+    const formatted = formatUnixMilliseconds(1_700_000_000_000);
     expect(formatted).not.toBe("N/A");
     expect(formatted).toContain("2023");
+  });
+
+  it("does not scale a seconds-sized value into milliseconds", () => {
+    const formatted = formatUnixMilliseconds(1_700_000_000);
+    expect(formatted).not.toContain("2023");
+    expect(formatted).toContain("1970");
   });
 });
 
@@ -52,12 +62,14 @@ describe("formatTotalBytes", () => {
 });
 
 describe("prune confirm copy", () => {
-  it("warns that unused local AI models are deleted and fleet models are not", () => {
+  it("warns that unused local AI models and local Knowledge are deleted", () => {
     expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/unused local AI models/i);
+    expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/unused local Knowledge/i);
     expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/container images/i);
-    expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(
-      /Fleet \(managed\) models are not removed/i,
-    );
+    expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/fleet \(managed\) models/i);
+    expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/fleet Knowledge/i);
+    expect(AGENT_PRUNE_CONFIRM_MESSAGE).toMatch(/not removed/i);
+    expect(AGENT_PRUNE_CONFIRM_MESSAGE).not.toMatch(/system prune/i);
   });
 });
 

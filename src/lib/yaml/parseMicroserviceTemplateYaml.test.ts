@@ -26,6 +26,11 @@ spec:
       permissions: ro
       items:
         - name: test-model
+    knowledge:
+      bindPath: /knowledge
+      permissions: ro
+      items:
+        - name: product-docs
     container:
       commands:
         - python
@@ -51,6 +56,11 @@ describe("parseMicroserviceTemplateYaml", () => {
       bindPath: "/models",
       permissions: "ro",
       items: [{ name: "test-model" }],
+    });
+    expect(parsed.microservice.knowledge).toEqual({
+      bindPath: "/knowledge",
+      permissions: "ro",
+      items: [{ name: "product-docs" }],
     });
     expect(parsed.microservice.commands).toEqual(["python", "app.py"]);
     expect(parsed.microservice).not.toHaveProperty("name");
@@ -139,6 +149,11 @@ spec:
       permissions: "ro",
       items: [{ name: "test-model" }],
     });
+    expect(roundTrip.resources[0].parsed.microservice.knowledge).toEqual({
+      bindPath: "/knowledge",
+      permissions: "ro",
+      items: [{ name: "product-docs" }],
+    });
     expect(roundTrip.resources[0].parsed.microservice.commands).toEqual([
       "python",
       "app.py",
@@ -195,6 +210,11 @@ spec:
       permissions: "{{permissions}}"
       items:
         - name: "{{model1}}"
+    knowledge:
+      bindPath: "{{knowledge-bind-path}}"
+      permissions: "{{knowledge-permissions}}"
+      items:
+        - name: "{{knowledge1}}"
     container:
       shmSize: "{{shm-size}}"
       env: []
@@ -223,6 +243,11 @@ spec:
     });
     expect(parsed.microservice.shmSize).toBe("{{shm-size}}");
     expect(parsed.microservice.schedule).toBe("{{schedule}}");
+    expect(parsed.microservice.knowledge).toEqual({
+      bindPath: "{{knowledge-bind-path}}",
+      permissions: "{{knowledge-permissions}}",
+      items: [{ name: "{{knowledge1}}" }],
+    });
 
     const dumped = dumpMicroserviceTemplateYaml(parsed);
     const dumpedDoc = yaml.load(dumped) as any;
@@ -234,6 +259,11 @@ spec:
     );
     expect(dumpedDoc.spec.microservice.container.shmSize).toBe("{{shm-size}}");
     expect(dumpedDoc.spec.microservice.schedule).toBe("{{schedule}}");
+    expect(dumpedDoc.spec.microservice.knowledge).toEqual({
+      bindPath: "{{knowledge-bind-path}}",
+      permissions: "{{knowledge-permissions}}",
+      items: [{ name: "{{knowledge1}}" }],
+    });
     expect(
       dumpedDoc.spec.variables.find((variable: any) => variable.key === "model3")
         .defaultValue,

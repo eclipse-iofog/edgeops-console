@@ -22,6 +22,7 @@ import { parseAgentYamlDocument } from "./agentYAML";
 import { parseNatsAccountRule } from "./parseNatsAccountRuleYaml";
 import { parseNatsUserRule } from "./parseNatsUserRuleYaml";
 import { parseModelYaml } from "./parseModelYaml";
+import { parseKnowledgeYaml } from "./parseKnowledgeYaml";
 import { parseRuntimeClassYaml } from "./parseRuntimeClassYaml";
 import { parseMicroserviceTemplateYaml } from "./parseMicroserviceTemplateYaml";
 import { applyMicroserviceFqName } from "./ApplicationParser";
@@ -46,6 +47,7 @@ export type ResourceKind =
   | "NatsAccountRule"
   | "NatsUserRule"
   | "Model"
+  | "Knowledge"
   | "RuntimeClass"
   | "MicroserviceTemplate";
 
@@ -94,6 +96,7 @@ export function getResourceKind(doc: any): ResourceKind | null {
     "NatsAccountRule",
     "NatsUserRule",
     "Model",
+    "Knowledge",
     "RuntimeClass",
     "MicroserviceTemplate",
   ];
@@ -123,6 +126,7 @@ export function getResourceIdentifier(
     case "ApplicationTemplate":
     case "Application":
     case "Model":
+    case "Knowledge":
     case "RuntimeClass":
     case "MicroserviceTemplate":
     case "Role":
@@ -300,6 +304,9 @@ async function routeToParser(
       case "Model":
         result = await parseModelYaml(doc);
         break;
+      case "Knowledge":
+        result = await parseKnowledgeYaml(doc);
+        break;
       case "RuntimeClass":
         result = await parseRuntimeClassYaml(doc);
         break;
@@ -351,6 +358,7 @@ function sortByDependencies(docs: any[]): any[] {
     "NatsUserRule",
     "Registry",
     "Model",
+    "Knowledge",
     "RuntimeClass",
     "CatalogItem",
     "ApplicationTemplate",

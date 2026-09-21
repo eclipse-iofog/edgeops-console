@@ -14,6 +14,7 @@ export type ResourceStoreId =
   | "secrets"
   | "volumeMounts"
   | "models"
+  | "knowledge"
   | "runtimeClasses"
   | "microserviceTemplates"
   | "certificates"
@@ -98,6 +99,13 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
     title: "AI Models",
     pollMode: "light",
     resourceStoreId: "models",
+    workbenchEligible: true,
+  },
+  {
+    path: "/config/Knowledge",
+    title: "AI Knowledge Catalog",
+    pollMode: "light",
+    resourceStoreId: "knowledge",
     workbenchEligible: true,
   },
   {
@@ -277,6 +285,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroupDef[] = [
       "/config/Registries",
       "/config/CatalogMicroservices",
       "/config/Models",
+      "/config/Knowledge",
       "/config/AppTemplates",
       "/config/MicroserviceTemplates",
       "/config/ConfigMaps",

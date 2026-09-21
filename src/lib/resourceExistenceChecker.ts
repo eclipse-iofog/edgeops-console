@@ -183,6 +183,15 @@ export async function fetchExistingResources(
         }
         return [];
       }
+      case "Knowledge": {
+        const response = await fetchListResponse("/api/v3/knowledge", request);
+        if (response?.ok) {
+          const data = await response.json();
+          const knowledge = data.knowledge || data;
+          return Array.isArray(knowledge) ? knowledge : [];
+        }
+        return [];
+      }
       case "RuntimeClass": {
         const response = await fetchListResponse(
           "/api/v3/runtimeClasses",
@@ -252,6 +261,7 @@ function resourceExists(
     case "NatsAccountRule":
     case "NatsUserRule":
     case "Model":
+    case "Knowledge":
     case "RuntimeClass":
     case "MicroserviceTemplate":
       return existingResources.some((r) => r.name === identifier);
@@ -378,6 +388,8 @@ export function getResourceEndpoint(
         : `/api/v3/nats/user-rules`;
     case "Model":
       return exists ? `/api/v3/models/${identifier}` : `/api/v3/models`;
+    case "Knowledge":
+      return exists ? `/api/v3/knowledge/${identifier}` : `/api/v3/knowledge`;
     case "RuntimeClass":
       return exists
         ? `/api/v3/runtimeClasses/${identifier}`
@@ -416,6 +428,7 @@ export function getResourceMethod(
     case "NatsAccountRule":
     case "NatsUserRule":
     case "Model":
+    case "Knowledge":
     case "RuntimeClass":
     case "MicroserviceTemplate":
       return "PATCH";
@@ -479,6 +492,7 @@ export async function preloadResourceCache(
         case "NatsAccountRule":
         case "NatsUserRule":
         case "Model":
+        case "Knowledge":
         case "RuntimeClass":
         case "MicroserviceTemplate":
           identifier = resource.name;

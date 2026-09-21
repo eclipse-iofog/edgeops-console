@@ -124,6 +124,66 @@ spec:
     expect(parsed).not.toHaveProperty("volumes");
   });
 
+  it("maps spec.knowledge beside spec.models and keeps item names only", async () => {
+    const result = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: app-a/ms-knowledge
+spec:
+  models:
+    bindPath: /models
+    permissions: ro
+    items:
+      - name: llama-7b
+  knowledge:
+    bindPath: /knowledge
+    permissions: ro
+    items:
+      - name: product-docs
+      - extra-docs
+      - name: other-docs
+        uuid: drop-me
+        hostPath: /tmp/docs
+  container:
+    env: []
+`);
+
+    expect(result.errors).toEqual([]);
+    const parsed = result.resources[0].parsed;
+    expect(parsed.models).toEqual({
+      bindPath: "/models",
+      permissions: "ro",
+      items: [{ name: "llama-7b" }],
+    });
+    expect(parsed.knowledge).toEqual({
+      bindPath: "/knowledge",
+      permissions: "ro",
+      items: [
+        { name: "product-docs" },
+        { name: "extra-docs" },
+        { name: "other-docs" },
+      ],
+    });
+    expect(JSON.stringify(parsed.knowledge)).not.toContain("uuid");
+    expect(JSON.stringify(parsed.knowledge)).not.toContain("hostPath");
+  });
+
+  it("leaves knowledge absent when spec.knowledge is omitted", async () => {
+    const result = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: app-a/ms-plain
+spec:
+  container:
+    env: []
+`);
+
+    expect(result.errors).toEqual([]);
+    expect(result.resources[0].parsed).not.toHaveProperty("knowledge");
+  });
+
   it("parses a thin template overlay without an inline image spec", async () => {
     const result = await parseUnifiedYaml(`
 apiVersion: iofog.org/v3
@@ -152,28 +212,37 @@ spec:
     expect(parsed).not.toHaveProperty("registryId");
   });
 
-  it("emits spec.models and commands on dump", () => {
-    const yamlDoc = getMicroserviceYAMLFromJSON({
-      microservice: {
-        name: "ms-a",
-        commands: ["python", "app.py"],
-        cmd: ["ignored"],
-        models: {
-          bindPath: "/models",
-          permissions: "ro",
-          items: [{ name: "test-model" }],
-        },
-        template: { name: "whisper-infer", variables: { model: "llama-7b" } },
-        cpus: 2.5,
-        runAsGroup: "0",
+  it("emits spec.models and commands on dump", async () => {
+    const microservice = {
+      name: "ms-a",
+      commands: ["python", "app.py"],
+      cmd: ["ignored"],
+      models: {
+        bindPath: "/models",
+        permissions: "ro",
+        items: [{ name: "test-model" }],
       },
-    });
+      knowledge: {
+        bindPath: "/knowledge",
+        permissions: "ro",
+        items: [{ name: "product-docs", uuid: "drop-me" }, "extra-docs"],
+      },
+      template: { name: "whisper-infer", variables: { model: "llama-7b" } },
+      cpus: 2.5,
+      runAsGroup: "0",
+    };
+    const yamlDoc = getMicroserviceYAMLFromJSON({ microservice });
 
     expect(yamlDoc.spec.container.commands).toEqual(["python", "app.py"]);
     expect(yamlDoc.spec.models).toEqual({
       bindPath: "/models",
       permissions: "ro",
       items: [{ name: "test-model" }],
+    });
+    expect(yamlDoc.spec.knowledge).toEqual({
+      bindPath: "/knowledge",
+      permissions: "ro",
+      items: [{ name: "product-docs" }, { name: "extra-docs" }],
     });
     expect(yamlDoc.spec.template).toEqual({
       name: "whisper-infer",
@@ -185,6 +254,21 @@ spec:
     expect(Object.keys(yamlDoc.spec.container)).toEqual([
       ...MICROSERVICE_CONTAINER_YAML_KEYS,
     ]);
+
+    const roundTrip = await parseUnifiedYaml(
+      dumpMicroserviceYAML({ microservice }),
+    );
+    expect(roundTrip.errors).toEqual([]);
+    expect(roundTrip.resources[0].parsed.models).toEqual({
+      bindPath: "/models",
+      permissions: "ro",
+      items: [{ name: "test-model" }],
+    });
+    expect(roundTrip.resources[0].parsed.knowledge).toEqual({
+      bindPath: "/knowledge",
+      permissions: "ro",
+      items: [{ name: "product-docs" }, { name: "extra-docs" }],
+    });
   });
 
   it("dumps typed empties, omits unused template, and annotates number fields", () => {
@@ -198,6 +282,7 @@ spec:
     expect(dumped).not.toContain("template:");
     expect(dumped).not.toContain("serviceAccount:");
     expect(dumped).toContain("models: {}");
+    expect(dumped).toContain("knowledge: {}");
     expect(dumped).not.toContain(": null");
     expect(dumped).toContain('runAsUser: ""');
     expect(dumped).toContain("cpus:  # float number of CPU");
@@ -209,6 +294,9 @@ spec:
       dumped.indexOf("models:"),
     );
     expect(dumped.indexOf("models:")).toBeLessThan(
+      dumped.indexOf("knowledge:"),
+    );
+    expect(dumped.indexOf("knowledge:")).toBeLessThan(
       dumped.indexOf("container:"),
     );
     expect(dumped.indexOf("hostNetworkMode:")).toBeLessThan(
@@ -446,6 +534,7 @@ spec:
     expect(appDoc.spec.microservices[0]).not.toHaveProperty("application");
     expect(appDoc.spec.microservices[0]).not.toHaveProperty("uuid");
     expect(appDoc.spec.microservices[0].models).toEqual({});
+    expect(appDoc.spec.microservices[0].knowledge).toEqual({});
     expect(Object.keys(appDoc.spec.microservices[0].container)).toEqual([
       ...MICROSERVICE_CONTAINER_YAML_KEYS,
     ]);

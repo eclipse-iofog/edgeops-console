@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseUnifiedYaml } from "./unifiedYamlParser";
 
 describe("unified YAML kind order", () => {
-  it("orders Registry before Model, RuntimeClass, and MicroserviceTemplate", async () => {
+  it("orders Registry before Model, Knowledge, RuntimeClass, and MicroserviceTemplate", async () => {
     const result = await parseUnifiedYaml(`
 apiVersion: iofog.org/v3
 kind: Microservice
@@ -30,6 +30,14 @@ spec:
   registryId: 3
 ---
 apiVersion: iofog.org/v3
+kind: Knowledge
+metadata:
+  name: product-docs
+spec:
+  repo: org/dataset
+  registryId: 3
+---
+apiVersion: iofog.org/v3
 kind: RuntimeClass
 metadata:
   name: spin
@@ -47,6 +55,7 @@ spec:
     expect(result.resources.map((resource) => resource.kind)).toEqual([
       "Registry",
       "Model",
+      "Knowledge",
       "RuntimeClass",
       "MicroserviceTemplate",
       "Microservice",

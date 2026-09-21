@@ -3,7 +3,7 @@ import { prettyBytes } from "@/lib/formatting";
 import { parseJsonArray } from "@/lib/parseJsonField";
 
 export const AGENT_PRUNE_CONFIRM_MESSAGE =
-  "This action will permanently delete unused container images and unused local AI models from the selected agent. Images not associated with a running microservice will be removed. Fleet (managed) models are not removed by prune. Make sure all necessary images and local models are in use before proceeding.\n \nThis is not reversible!";
+  "This action will permanently delete unused container images, unused local AI models, and unused local Knowledge on the selected agent. Images not associated with a running microservice will be removed. Fleet (managed) models and fleet Knowledge are not removed by prune. Make sure all necessary images, local models, and local Knowledge are in use before proceeding.\n \nThis is not reversible!";
 
 export function isManagedModelSource(source: unknown): boolean {
   return String(source ?? "").toLowerCase() === "managed";
@@ -19,15 +19,15 @@ export function displayFogValue(value: unknown): string {
   return String(value);
 }
 
-export function formatUnixSeconds(value: unknown): string {
+export function formatUnixMilliseconds(value: unknown): string {
   if (value == null || value === "") {
     return "N/A";
   }
-  const seconds = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(seconds) || seconds === 0) {
+  const milliseconds = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(milliseconds) || milliseconds === 0) {
     return "N/A";
   }
-  const date = new Date(seconds * 1000);
+  const date = new Date(milliseconds);
   if (Number.isNaN(date.getTime())) {
     return "N/A";
   }

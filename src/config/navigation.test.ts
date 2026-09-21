@@ -31,11 +31,16 @@ describe("navigation registry", () => {
     expect(isWorkbenchEligible("/dashboard")).toBe(true);
   });
 
-  it("registers AI Models, Runtime Classes, and Microservice Templates", () => {
+  it("registers AI Models, AI Knowledge Catalog, Runtime Classes, and Microservice Templates", () => {
     expect(getRouteMeta("/config/Models")?.title).toBe("AI Models");
     expect(getPollMode("/config/Models")).toBe(POLL_MODES.LIGHT);
     expect(getResourceStoreId("/config/Models")).toBe("models");
     expect(isWorkbenchEligible("/config/Models")).toBe(true);
+
+    expect(getRouteMeta("/config/Knowledge")?.title).toBe("AI Knowledge Catalog");
+    expect(getPollMode("/config/Knowledge")).toBe(POLL_MODES.LIGHT);
+    expect(getResourceStoreId("/config/Knowledge")).toBe("knowledge");
+    expect(isWorkbenchEligible("/config/Knowledge")).toBe(true);
 
     expect(getRouteMeta("/config/RuntimeClasses")?.title).toBe("Runtime Classes");
     expect(getPollMode("/config/RuntimeClasses")).toBe(POLL_MODES.LIGHT);
@@ -58,6 +63,7 @@ describe("navigation registry", () => {
       "/config/Registries",
       "/config/CatalogMicroservices",
       "/config/Models",
+      "/config/Knowledge",
       "/config/AppTemplates",
       "/config/MicroserviceTemplates",
       "/config/ConfigMaps",

@@ -224,6 +224,7 @@ export function useUnifiedYamlUpload({
 
       if (
         (kind === "Model" ||
+          kind === "Knowledge" ||
           kind === "RuntimeClass" ||
           kind === "MicroserviceTemplate") &&
         exists
