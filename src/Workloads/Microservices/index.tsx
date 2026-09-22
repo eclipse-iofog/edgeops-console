@@ -760,6 +760,68 @@ function MicroservicesList() {
       },
     },
     {
+      label: "NATS Config",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => {
+        const natsAccess = row?.natsConfig?.natsAccess ?? row?.natsAccess;
+        const natsRule = row?.natsConfig?.natsRule ?? row?.natsRule;
+        const natsRuleId = row?.natsRuleId;
+        const hasNatsConfig =
+          natsAccess !== undefined ||
+          Boolean(natsRule) ||
+          (natsRuleId !== undefined && natsRuleId !== null);
+
+        if (!hasNatsConfig) {
+          return <div className="text-sm text-gray-400">No NATS config.</div>;
+        }
+
+        return (
+          <div className="rounded-md border border-gray-700 bg-gray-800/40 p-3">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-xs text-gray-400">Access</span>
+              <span
+                className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  natsAccess === true
+                    ? "bg-emerald-600/30 text-emerald-300"
+                    : natsAccess === false
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-600/40 text-gray-300"
+                }`}
+              >
+                {natsAccess === undefined
+                  ? "N/A"
+                  : natsAccess
+                    ? "ENABLED"
+                    : "DISABLED"}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-400">Rule</span>
+              <span className="text-sm font-medium break-all">
+                {natsRule ? (
+                  <ResourceLink
+                    path="/access-control/nats-user-rules"
+                    query={{ ruleName: natsRule }}
+                  >
+                    {natsRule}
+                  </ResourceLink>
+                ) : natsRuleId !== undefined && natsRuleId !== null ? (
+                  `${natsRuleId}`
+                ) : (
+                  "N/A"
+                )}
+              </span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       label: "Images",
       render: () => "",
       isSectionHeader: true,
@@ -810,60 +872,6 @@ function MicroservicesList() {
       },
     },
     ...importantContainerSpecFields(),
-    {
-      label: "NATs Config",
-      render: () => "",
-      isSectionHeader: true,
-    },
-    {
-      label: "",
-      isFullSection: true,
-      render: (row: any) => {
-        const natsAccess = row?.natsConfig?.natsAccess ?? row?.natsAccess;
-        const natsRule = row?.natsConfig?.natsRule ?? row?.natsRule;
-        const natsRuleId = row?.natsRuleId;
-        const hasNatsConfig =
-          natsAccess !== undefined ||
-          Boolean(natsRule) ||
-          (natsRuleId !== undefined && natsRuleId !== null);
-
-        if (!hasNatsConfig) {
-          return <div className="text-sm text-gray-400">No NATs config.</div>;
-        }
-
-        return (
-          <div className="rounded-md border border-gray-700 bg-gray-800/40 p-3">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-xs text-gray-400">Access</span>
-              <span
-                className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  natsAccess === true
-                    ? "bg-emerald-600/30 text-emerald-300"
-                    : natsAccess === false
-                      ? "bg-red-600/30 text-red-300"
-                      : "bg-gray-600/40 text-gray-300"
-                }`}
-              >
-                {natsAccess === undefined
-                  ? "N/A"
-                  : natsAccess
-                    ? "ENABLED"
-                    : "DISABLED"}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-400">Rule</span>
-              <span className="text-sm font-medium break-all">
-                {natsRule ||
-                  (natsRuleId !== undefined && natsRuleId !== null
-                    ? `${natsRuleId}`
-                    : "N/A")}
-              </span>
-            </div>
-          </div>
-        );
-      },
-    },
     {
       label: "Status",
       render: () => "",

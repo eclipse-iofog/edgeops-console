@@ -194,14 +194,14 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
   },
   {
     path: "/access-control/nats-account-rules",
-    title: "NATs Account Rules",
+    title: "NATS Account Rules",
     pollMode: "off",
     resourceStoreId: "natsAccountRules",
     workbenchEligible: true,
   },
   {
     path: "/access-control/nats-user-rules",
-    title: "NATs User Rules",
+    title: "NATS User Rules",
     pollMode: "off",
     resourceStoreId: "natsUserRules",
     workbenchEligible: true,
