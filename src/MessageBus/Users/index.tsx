@@ -185,7 +185,7 @@ function Users() {
       const res = await request("/api/v3/nats/users");
       if (!res?.ok) {
         pushFeedback({
-          message: res?.message || "Failed to fetch NATs users",
+          message: res?.message || "Failed to fetch NATS users",
           type: "error",
         });
         setUsers([]);
@@ -302,7 +302,7 @@ function Users() {
 
     if (!res?.ok) {
       pushFeedback({
-        message: res?.message || "Failed to create NATs user",
+        message: res?.message || "Failed to create NATS user",
         type: "error",
       });
       return;
@@ -311,7 +311,7 @@ function Users() {
     pushFeedback({
       message: isMqtt
         ? "MQTT bearer user created"
-        : `NATs user ${draft.name} created`,
+        : `NATS user ${draft.name} created`,
       type: "success",
     });
 
@@ -496,7 +496,7 @@ function Users() {
   return (
     <div className="bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-        NATs Users
+        NATS Users
       </h1>
 
       <div className="flex flex-wrap gap-2 items-end mb-4">
@@ -603,7 +603,7 @@ function Users() {
       <SlideOver
         open={isOpen}
         onClose={() => setIsOpen(false)}
-        title={selectedUser?.name || "NATs User"}
+        title={selectedUser?.name || "NATS User"}
         data={selectedUser}
         fields={fields}
         customWidth={700}
@@ -629,7 +629,7 @@ function Users() {
 
       <CustomActionModal
         open={showCreateModal}
-        title="Create NATs User"
+        title="Create NATS User"
         onCancel={() => setShowCreateModal(false)}
         onConfirm={() => createUser(false)}
         confirmLabel="Create"

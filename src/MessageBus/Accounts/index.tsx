@@ -21,7 +21,7 @@ function Accounts() {
     const res = await request("/api/v3/nats/accounts");
     if (!res?.ok) {
       pushFeedback({
-        message: res?.message || "Failed to fetch NATs accounts",
+        message: res?.message || "Failed to fetch NATS accounts",
         type: "error",
       });
       return;
@@ -69,14 +69,14 @@ function Accounts() {
 
     if (!res?.ok) {
       pushFeedback({
-        message: res?.message || "Failed to ensure NATs account",
+        message: res?.message || "Failed to ensure NATS account",
         type: "error",
       });
       return;
     }
 
     pushFeedback({
-      message: `NATs account ensured for application ${appName}`,
+      message: `NATS account ensured for application ${appName}`,
       type: "success",
     });
     setShowEnsureModal(false);
@@ -146,7 +146,7 @@ function Accounts() {
   return (
     <div className="bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-        NATs Accounts
+        NATS Accounts
       </h1>
       <div className="mb-4">
         <button
@@ -167,7 +167,7 @@ function Accounts() {
       <SlideOver
         open={isOpen}
         onClose={() => setIsOpen(false)}
-        title={selectedAccount?.name || "NATs Account"}
+        title={selectedAccount?.name || "NATS Account"}
         data={selectedAccount}
         fields={fields}
         customWidth={700}
@@ -175,7 +175,7 @@ function Accounts() {
 
       <CustomActionModal
         open={showEnsureModal}
-        title="Ensure NATs Account"
+        title="Ensure NATS Account"
         onCancel={() => setShowEnsureModal(false)}
         onConfirm={handleEnsure}
         confirmLabel="Ensure"
