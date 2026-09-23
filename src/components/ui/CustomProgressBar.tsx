@@ -28,6 +28,27 @@ const CustomProgressBar = ({
   } else if (unit === "microservice") {
     percent = Math.min(value / (max / 100), 100);
     displayValue = `${prettyBytes(value || 0)} / ${prettyBytes(max)}`;
+  } else if (unit === "host-percent") {
+    const pct = Math.max(Number(value) || 0, 0);
+    percent = Math.min(pct, 100);
+    displayValue = `${pct.toFixed(1)}%`;
+  } else if (unit === "bytes-used-total") {
+    const total = Number(max) || 0;
+    const used = Math.max(Number(value) || 0, 0);
+    percent = total > 0 ? Math.min((used / total) * 100, 100) : 0;
+    displayValue = `${prettyBytes(used)} / ${prettyBytes(total)}`;
+  } else if (unit === "microservice-cpu") {
+    const maxUnits = Number(max) || 0;
+    const usedUnits = Math.max(Number(value) || 0, 0);
+    percent =
+      maxUnits > 0 ? Math.min((usedUnits / maxUnits) * 100, 100) : 0;
+    displayValue = `${(usedUnits / 100).toFixed(2)} / ${(maxUnits / 100).toFixed(2)} cores`;
+  } else if (unit === "microservice-memory") {
+    const limitBytes = Number(max) || 0;
+    const usedBytes = Math.max(Number(value) || 0, 0);
+    percent =
+      limitBytes > 0 ? Math.min((usedBytes / limitBytes) * 100, 100) : 0;
+    displayValue = `${prettyBytes(usedBytes)} / ${prettyBytes(limitBytes)}`;
   } else {
     percent = Math.min(value / (max / 100), 100);
   }
