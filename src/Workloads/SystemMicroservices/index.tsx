@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useData } from "@/app/providers";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import CustomProgressBar from "@/components/ui/CustomProgressBar";
+import {
+  MicroserviceCpuCell,
+  MicroserviceMemoryCell,
+} from "@/components/ui/WorkloadResourceCells";
+import {
+  formatCpuCores,
+  formatMicroserviceMemory,
+} from "@/lib/formatting/resourceMetrics";
 import SlideOver from "@/components/ui/SlideOver";
 import { format, formatDistanceToNow } from "date-fns";
 import { useController } from "@/app/providers";
@@ -566,21 +573,12 @@ function SystemMicroserviceList() {
     {
       key: "cpuUsage",
       header: "CPU Usage",
-      render: (row: any) => {
-        const usage = Number(row?.status?.cpuUsage || 0);
-        return <CustomProgressBar value={usage} max={100} unit="%" />;
-      },
+      render: (row: any) => <MicroserviceCpuCell row={row} />,
     },
     {
       key: "memoryUsage",
       header: "Memory Usage",
-      render: (row: any) => (
-        <CustomProgressBar
-          value={row?.status?.memoryUsage}
-          max={data.reducedAgents.byUUID[row?.iofogUuid]?.systemAvailableMemory}
-          unit="microservice"
-        />
-      ),
+      render: (row: any) => <MicroserviceMemoryCell row={row} />,
     },
     {
       key: "status",
@@ -906,13 +904,16 @@ function SystemMicroserviceList() {
       isSectionHeader: true,
     },
     {
-      label: "CPU Usage",
-      render: (row: any) =>
-        `${(Number(row?.status?.cpuUsage) || 0)?.toFixed(2)}%`,
+      label: "Container CPU",
+      render: (row: any) => formatCpuCores(row?.status?.cpuUsage),
     },
     {
-      label: "Memory Usage",
-      render: (row: any) => `${prettyBytes(row.status?.memoryUsage || 0)}`,
+      label: "Container memory",
+      render: (row: any) =>
+        formatMicroserviceMemory(
+          row.status?.memoryUsage,
+          row.memoryLimit,
+        ),
     },
     {
       label: "Ports",
