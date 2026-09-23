@@ -66,7 +66,7 @@ describe("microservice knowledge patch", () => {
     );
   });
 
-  it("blocks a knowledge bind path that matches the AI Models catalog path", () => {
+  it("blocks a knowledge bind path that matches the AI Model Catalog catalog path", () => {
     const result = buildMicroserviceKnowledgePatch(
       {
         bindPath: "/models/",
@@ -79,7 +79,7 @@ describe("microservice knowledge patch", () => {
     );
     expect(result).toEqual({
       ok: false,
-      error: "Knowledge bind path collides with the AI Models catalog path.",
+      error: "Knowledge bind path collides with the AI Model Catalog catalog path.",
     });
     expect(result).not.toHaveProperty("body");
   });

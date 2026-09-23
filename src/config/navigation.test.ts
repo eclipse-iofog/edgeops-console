@@ -31,8 +31,8 @@ describe("navigation registry", () => {
     expect(isWorkbenchEligible("/dashboard")).toBe(true);
   });
 
-  it("registers AI Models, AI Knowledge Catalog, Runtime Classes, and Microservice Templates", () => {
-    expect(getRouteMeta("/config/Models")?.title).toBe("AI Models");
+  it("registers AI Model Catalog, AI Knowledge Catalog, Runtime Classes, and Microservice Templates", () => {
+    expect(getRouteMeta("/config/Models")?.title).toBe("AI Model Catalog");
     expect(getPollMode("/config/Models")).toBe(POLL_MODES.LIGHT);
     expect(getResourceStoreId("/config/Models")).toBe("models");
     expect(isWorkbenchEligible("/config/Models")).toBe(true);
@@ -57,7 +57,7 @@ describe("navigation registry", () => {
     expect(isWorkbenchEligible("/config/MicroserviceTemplates")).toBe(true);
   });
 
-  it("orders Config sidebar children with Microservice Templates, AI Models, and Runtime Classes", () => {
+  it("orders Config sidebar children with Microservice Templates, AI Model Catalog, and Runtime Classes", () => {
     const configGroup = SIDEBAR_NAV_GROUPS.find((group) => group.id === "config");
     expect(configGroup?.childPaths).toEqual([
       "/config/Registries",

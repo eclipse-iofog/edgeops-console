@@ -28,7 +28,7 @@ const Dashboard = () => {
 
   const baseMetrics = [
     {
-      title: 'Edge Nodes',
+      title: 'Compute Nodes',
       value: totalAgents,
       running: runningAgents,
       color: 'from-blue-500 to-blue-600',
@@ -79,7 +79,7 @@ const Dashboard = () => {
           <div className='flex items-center justify-between'>
             <div>
               <h1 className='text-3xl xl:text-4xl 2xl:text-5xl font-bold text-white mb-2'>EdgeOps Console</h1>
-              <p className='text-gray-300 text-sm xl:text-base 2xl:text-lg'>Live visibility across edge nodes, microservices, and platform health</p>
+              <p className='text-gray-300 text-sm xl:text-base 2xl:text-lg'>Live visibility across compute nodes, microservices, and platform health</p>
             </div>
             <div className='text-right'>
               <div className='text-sm xl:text-base text-gray-400'>Last Updated</div>

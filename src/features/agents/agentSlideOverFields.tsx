@@ -2,13 +2,21 @@ import React from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import ResourceLink from "@/components/ui/ResourceLink";
 import CustomDataTable from "@/components/ui/CustomDataTable";
+import { formatArchitectureLabel, getTextColor } from "@/lib/formatting";
 import {
-  formatAgentDiskUsage,
-  formatArchitectureLabel,
-  getTextColor,
-  MiBFactor,
-  prettyBytes,
-} from "@/lib/formatting";
+  displayOrDash,
+  HostCpuMetricBar,
+  HostDiskFsMetricBar,
+  HostMemoryMetricBar,
+} from "@/components/ui/EdgeletHostMetricCells";
+import {
+  formatCpuCoresWithLimit,
+  formatDecimalGbPair,
+  formatEdgeletMemory,
+  formatHostBytesUsedTotal,
+  formatHostCpuPercentLabel,
+  isResourceViolation,
+} from "@/lib/formatting/resourceMetrics";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { BadgeList } from "@/AccessControl/utils/badgeHelpers";
 import { formatAgentDuration } from "./formatAgentDuration";
@@ -30,6 +38,26 @@ function noneFoundForAgent(resource: string) {
       No {resource} found for this agent.
     </div>
   );
+}
+
+function renderViolationFlag(value: unknown) {
+  const violated = isResourceViolation(value);
+  return (
+    <span className={violated ? "text-amber-300 font-medium" : "text-gray-300"}>
+      {violated ? "Yes" : "No"}
+    </span>
+  );
+}
+
+function formatLogicalCpus(value: unknown) {
+  if (value == null || value === "") {
+    return "N/A";
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return displayOrDash(value);
+  }
+  return `${n} ${n === 1 ? "core" : "cores"}`;
 }
 
 const renderAgentTags = (tags: any) => {
@@ -290,34 +318,127 @@ export const buildAgentSlideOverFields = (
       },
     },
     {
-      label: "Resource Utilization",
+      label: "Host",
       render: () => "",
       isSectionHeader: true,
     },
     {
-      label: "CPU Usage",
-      render: (node: any) => `${(Number(node.cpuUsage) || 0)?.toFixed(2)}%`,
+      label: "Logical CPUs",
+      render: (node: any) => formatLogicalCpus(node.systemCpus),
     },
     {
-      label: "System Total CPU",
-      render: (node: any) => `${node.systemTotalCpu?.toFixed(2)}%`,
-    },
-    {
-      label: "Memory Usage",
+      label: "Host OS",
       render: (node: any) =>
-        `${prettyBytes(node.memoryUsage * MiBFactor || 0)}`,
+        node.systemOs != null && node.systemOs !== ""
+          ? String(node.systemOs)
+          : "N/A",
     },
     {
-      label: "System Available Memory",
-      render: (node: any) => `${prettyBytes(node.systemAvailableMemory || 0)}`,
+      label: "OS version",
+      render: (node: any) => displayOrDash(node.systemOsVersion),
     },
     {
-      label: "Disk Usage",
-      render: (node: any) => formatAgentDiskUsage(node.diskUsage),
+      label: "Kernel",
+      render: (node: any) => {
+        const os = String(node.systemOs ?? "").toLowerCase();
+        if (os !== "linux") {
+          return "N/A";
+        }
+        const kernel = node.systemKernelVersion;
+        return kernel != null && kernel !== "" ? String(kernel) : "—";
+      },
     },
     {
-      label: "System Available Disk",
-      render: (node: any) => `${prettyBytes(node.systemAvailableDisk || 0)}`,
+      label: "Host CPU usage",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostCpuPercentLabel(node.systemTotalCpu)}
+          </span>
+          <HostCpuMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "Host memory",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostBytesUsedTotal(
+              node.systemTotalMemory,
+              node.systemAvailableMemory,
+            )}
+          </span>
+          <HostMemoryMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "Host disk (FS)",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostBytesUsedTotal(
+              node.systemTotalDisk,
+              node.systemAvailableDisk,
+            )}
+          </span>
+          <HostDiskFsMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "",
+      render: () => (
+        <p className="text-xs text-gray-500">
+          Host fields are informational inventory, not Edge Guard attestation.
+        </p>
+      ),
+    },
+    {
+      label: "Edgelet stack",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "Edgelet CPU usage",
+      render: (node: any) =>
+        formatCpuCoresWithLimit(node.cpuUsage, node.cpuLimit),
+    },
+    {
+      label: "CPU violation",
+      render: (node: any) => renderViolationFlag(node.cpuViolation),
+    },
+    {
+      label: "Edgelet memory usage",
+      render: (node: any) =>
+        formatEdgeletMemory(node.memoryUsage, node.memoryLimit),
+    },
+    {
+      label: "Memory violation",
+      render: (node: any) => renderViolationFlag(node.memoryViolation),
+    },
+    {
+      label: "Data directory",
+      render: (node: any) =>
+        formatDecimalGbPair(node.diskUsage, node.diskLimit),
+    },
+    {
+      label: "Data directory path",
+      render: (node: any) => node.diskDirectory || "N/A",
+    },
+    {
+      label: "Disk violation",
+      render: (node: any) => renderViolationFlag(node.diskViolation),
+    },
+    {
+      label: "",
+      render: () => (
+        <p className="text-xs text-gray-500">
+          Data directory usage is Edgelet policy storage, not the host
+          filesystem totals above.
+        </p>
+      ),
     },
     {
       label: "Volume Mounts",
@@ -718,27 +839,6 @@ export const buildAgentSlideOverFields = (
       render: (node: any) => {
         return node.gpsStatus || "N/A";
       },
-    },
-    {
-      label: "Cpu Violation",
-      render: (row: any) =>
-        row.cpuViolation === "0" || row.cpuViolation === "false"
-          ? "false"
-          : "true",
-    },
-    {
-      label: "Disk Violation",
-      render: (row: any) =>
-        row.diskViolation === "0" || row.diskViolation === "false"
-          ? "false"
-          : "true",
-    },
-    {
-      label: "Memory Violation",
-      render: (row: any) =>
-        row.memoryViolation === "0" || row.memoryViolation === "false"
-          ? "false"
-          : "true",
     },
     {
       label: "Is Ready To Rollback",

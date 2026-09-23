@@ -151,6 +151,32 @@ describe("agent fog status fields", () => {
     expect(screen.getByText(/2023/)).toBeInTheDocument();
   });
 
+  it("formats Edgelet CPU usage in cores and shows host OS fields", () => {
+    renderLabeled("Edgelet CPU usage", { cpuUsage: 32, cpuLimit: 80 });
+    expect(screen.getByText(/0\.32 cores/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.80 limit/)).toBeInTheDocument();
+
+    renderLabeled("Host OS", { systemOs: "linux" });
+    expect(screen.getByText("linux")).toBeInTheDocument();
+
+    renderLabeled("OS version", { systemOsVersion: "Ubuntu 22.04" });
+    expect(screen.getByText("Ubuntu 22.04")).toBeInTheDocument();
+  });
+
+  it("shows kernel only meaningfully on linux", () => {
+    renderLabeled("Kernel", {
+      systemOs: "darwin",
+      systemKernelVersion: "24.0.0",
+    });
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+
+    renderLabeled("Kernel", {
+      systemOs: "linux",
+      systemKernelVersion: "6.8.0-45-generic",
+    });
+    expect(screen.getByText("6.8.0-45-generic")).toBeInTheDocument();
+  });
+
   it("places Knowledge status after model last update and before Status", () => {
     const labels = buildAgentSlideOverFields({}).map((field) => field.label);
     const modelUpdate = labels.indexOf("Model last update");
