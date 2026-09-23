@@ -96,7 +96,7 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
   },
   {
     path: "/config/Models",
-    title: "AI Models",
+    title: "AI Model Catalog",
     pollMode: "light",
     resourceStoreId: "models",
     workbenchEligible: true,

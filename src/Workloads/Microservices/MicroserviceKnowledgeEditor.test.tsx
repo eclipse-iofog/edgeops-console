@@ -108,7 +108,7 @@ describe("MicroserviceKnowledgeEditor", () => {
 
     expect(request).not.toHaveBeenCalled();
     expect(pushFeedback).toHaveBeenCalledWith({
-      message: "Knowledge bind path collides with the AI Models catalog path.",
+      message: "Knowledge bind path collides with the AI Model Catalog catalog path.",
       type: "error",
     });
   });

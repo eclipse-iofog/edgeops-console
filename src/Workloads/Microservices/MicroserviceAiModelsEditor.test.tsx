@@ -55,7 +55,7 @@ describe("MicroserviceAiModelsEditor", () => {
       }),
     });
     expect(pushFeedback).toHaveBeenCalledWith({
-      message: "AI Models updated",
+      message: "AI Model Catalog updated",
       type: "success",
     });
     expect(onSaved).toHaveBeenCalled();

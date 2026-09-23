@@ -88,17 +88,17 @@ export default function MicroserviceAiModelsEditor({
       });
       if (!res?.ok) {
         pushFeedback({
-          message: res?.message || "Failed to update AI Models",
+          message: res?.message || "Failed to update AI Model Catalog",
           type: "error",
         });
         return;
       }
-      pushFeedback({ message: "AI Models updated", type: "success" });
+      pushFeedback({ message: "AI Model Catalog updated", type: "success" });
       setDirty(false);
       await onSaved();
     } catch (error: any) {
       pushFeedback({
-        message: error?.message || "Failed to update AI Models",
+        message: error?.message || "Failed to update AI Model Catalog",
         type: "error",
       });
     } finally {

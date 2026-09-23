@@ -617,7 +617,7 @@ function Models() {
         <>
           <div className="bg-gray-900 text-white p-4">
             <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-              AI Models
+              AI Model Catalog
             </h1>
 
             <CustomDataTable

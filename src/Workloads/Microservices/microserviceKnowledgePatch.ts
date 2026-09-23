@@ -41,7 +41,7 @@ const BIND_PATH_REQUIRED =
   "Bind path is required when knowledge items are listed.";
 
 const MODELS_BIND_COLLISION =
-  "Knowledge bind path collides with the AI Models catalog path.";
+  "Knowledge bind path collides with the AI Model Catalog catalog path.";
 
 export function catalogToDraft(
   catalog: MicroserviceKnowledgeCatalog | null | undefined,
@@ -197,7 +197,7 @@ function knowledgeCatalogCollision(
     }
 
     if (modelsBindPath && sameContainerPath(projected, modelsBindPath)) {
-      return `Knowledge item ${name} at ${projected} collides with the AI Models catalog path.`;
+      return `Knowledge item ${name} at ${projected} collides with the AI Model Catalog catalog path.`;
     }
 
     for (const model of modelItemPaths(neighbors.models)) {
