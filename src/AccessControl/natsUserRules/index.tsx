@@ -181,7 +181,7 @@ function NatsUserRules() {
     const yamlString = yaml.dump(yamlObj, { noRefs: true, indent: 2 });
 
     addYamlSession({
-      title: `NATs User Rule YAML: ${selectedRule.name}`,
+      title: `NATS User Rule YAML: ${selectedRule.name}`,
       content: yamlString,
       isDirty: false,
       onSave: async (content: string) => {
@@ -260,7 +260,7 @@ function NatsUserRules() {
         });
       } else {
         pushFeedback({
-          message: `NATs User Rule ${selectedRule.name} deleted`,
+          message: `NATS User Rule ${selectedRule.name} deleted`,
           type: "success",
         });
         setShowDeleteConfirmModal(false);
@@ -339,7 +339,7 @@ function NatsUserRules() {
       {listLoading ? (
         <CustomLoadingModal
           open={true}
-          message="Fetching NATs User Rules"
+          message="Fetching NATS User Rules"
           spinnerSize="lg"
           spinnerColor="text-green-500"
           overlayOpacity={60}
@@ -347,7 +347,7 @@ function NatsUserRules() {
       ) : (
         <div className="bg-gray-900 text-white p-4">
           <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-            NATs User Rules
+            NATS User Rules
           </h1>
 
           <CustomDataTable
@@ -366,7 +366,7 @@ function NatsUserRules() {
                 : undefined
             }
             onEditYaml={handleEditYaml}
-            title={selectedRule?.name || "NATs User Rule Details"}
+            title={selectedRule?.name || "NATS User Rule Details"}
             data={selectedRule}
             fields={slideOverFields}
             customWidth={650}
@@ -376,8 +376,8 @@ function NatsUserRules() {
             open={showDeleteConfirmModal}
             onCancel={() => setShowDeleteConfirmModal(false)}
             onConfirm={handleDeleteRule}
-            title={`Deleting NATs User Rule ${selectedRule?.name}`}
-            message="This action will remove the NATs user rule from the system. This is not reversible."
+            title={`Deleting NATS User Rule ${selectedRule?.name}`}
+            message="This action will remove the NATS user rule from the system. This is not reversible."
             cancelLabel={"Cancel"}
             confirmLabel={"Delete"}
           />

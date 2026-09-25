@@ -1,9 +1,15 @@
+import { isTemplatePlaceholder } from "./yamlTemplatePlaceholders";
+
 const REGISTRY_ALIASES = {
   remote: 1,
   local: 2,
 };
 
 export function resolveRegistryId(registry, defaultId = 1) {
+  if (isTemplatePlaceholder(registry)) {
+    return registry.trim();
+  }
+
   if (registry === null || registry === undefined || registry === "") {
     return defaultId;
   }

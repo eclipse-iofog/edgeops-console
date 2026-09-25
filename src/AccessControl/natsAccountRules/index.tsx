@@ -205,7 +205,7 @@ function NatsAccountRules() {
     const yamlString = yaml.dump(yamlObj, { noRefs: true, indent: 2 });
 
     addYamlSession({
-      title: `NATs Account Rule YAML: ${selectedRule.name}`,
+      title: `NATS Account Rule YAML: ${selectedRule.name}`,
       content: yamlString,
       isDirty: false,
       onSave: async (content: string) => {
@@ -284,7 +284,7 @@ function NatsAccountRules() {
         });
       } else {
         pushFeedback({
-          message: `NATs Account Rule ${selectedRule.name} deleted`,
+          message: `NATS Account Rule ${selectedRule.name} deleted`,
           type: "success",
         });
         setShowDeleteConfirmModal(false);
@@ -363,7 +363,7 @@ function NatsAccountRules() {
       {listLoading ? (
         <CustomLoadingModal
           open={true}
-          message="Fetching NATs Account Rules"
+          message="Fetching NATS Account Rules"
           spinnerSize="lg"
           spinnerColor="text-green-500"
           overlayOpacity={60}
@@ -371,7 +371,7 @@ function NatsAccountRules() {
       ) : (
         <div className="bg-gray-900 text-white p-4">
           <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-            NATs Account Rules
+            NATS Account Rules
           </h1>
 
           <CustomDataTable
@@ -390,7 +390,7 @@ function NatsAccountRules() {
                 : undefined
             }
             onEditYaml={handleEditYaml}
-            title={selectedRule?.name || "NATs Account Rule Details"}
+            title={selectedRule?.name || "NATS Account Rule Details"}
             data={selectedRule}
             fields={slideOverFields}
             customWidth={650}
@@ -400,8 +400,8 @@ function NatsAccountRules() {
             open={showDeleteConfirmModal}
             onCancel={() => setShowDeleteConfirmModal(false)}
             onConfirm={handleDeleteRule}
-            title={`Deleting NATs Account Rule ${selectedRule?.name}`}
-            message="This action will remove the NATs account rule from the system. This is not reversible."
+            title={`Deleting NATS Account Rule ${selectedRule?.name}`}
+            message="This action will remove the NATS account rule from the system. This is not reversible."
             cancelLabel={"Cancel"}
             confirmLabel={"Delete"}
           />

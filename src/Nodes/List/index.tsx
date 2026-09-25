@@ -1,12 +1,57 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { AlertTriangle } from "lucide-react";
 import { useData, useController, useFeedback } from "@/app/providers";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import CustomProgressBar from "@/components/ui/CustomProgressBar";
 import AgentSlideOverPanel from "@/features/agents/AgentSlideOverPanel";
+import {
+  displayOrDash,
+  HostCpuMetricBar,
+  HostDiskFsMetricBar,
+  HostMemoryMetricBar,
+} from "@/components/ui/EdgeletHostMetricCells";
 import { formatArchitectureLabel, getTextColor } from "../../lib/formatting";
+import {
+  formatCpuCoresWithLimit,
+  formatDecimalGbPair,
+  formatEdgeletMemory,
+  isResourceViolation,
+} from "@/lib/formatting/resourceMetrics";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
+
+function EdgeletStatusCell({ row }: { row: any }) {
+  const statusKey = row.daemonStatus;
+  const bgColor = StatusColor[statusKey as StatusType] ?? "#9CA3AF";
+  const textColor = getTextColor(bgColor);
+  const violations = [
+    isResourceViolation(row.cpuViolation) && "CPU",
+    isResourceViolation(row.memoryViolation) && "Memory",
+    isResourceViolation(row.diskViolation) && "Disk",
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span
+        className="px-2 py-1 rounded-full text-xs font-semibold"
+        style={{
+          backgroundColor: bgColor,
+          color: textColor,
+        }}
+      >
+        {row.daemonStatus}
+      </span>
+      {violations.length > 0 ? (
+        <span
+          className="inline-flex items-center text-amber-400"
+          title={`Limit violation: ${violations.join(", ")}`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function NodesList() {
   const { data } = useData();
@@ -62,16 +107,49 @@ function NodesList() {
       ),
     },
     {
+      key: "daemonStatus",
+      header: "Status",
+      render: (row: any) => <EdgeletStatusCell row={row} />,
+    },
+    {
       key: "host",
       header: "Host",
+      render: (row: any) => (
+        <span className="text-xs text-gray-300 whitespace-nowrap">
+          {displayOrDash(row.host || row.ipAddress)}
+        </span>
+      ),
     },
     {
-      key: "deploymentType",
-      header: "Deployment Type",
+      key: "systemOs",
+      header: "Host OS",
+      render: (row: any) => (
+        <span className="text-xs text-gray-300">{displayOrDash(row.systemOs)}</span>
+      ),
     },
     {
-      key: "containerEngine",
-      header: "Container Engine",
+      key: "systemOsVersion",
+      header: "OS Version",
+      render: (row: any) => (
+        <span className="text-xs text-gray-300">
+          {displayOrDash(row.systemOsVersion)}
+        </span>
+      ),
+    },
+    {
+      key: "systemCpus",
+      header: "Host CPUs",
+      render: (row: any) => {
+        const cpus = row.systemCpus;
+        if (cpus == null || cpus === "") {
+          return <span className="text-xs text-gray-500">—</span>;
+        }
+        return (
+          <span className="text-xs text-gray-300 whitespace-nowrap">
+            {cpus} {Number(cpus) === 1 ? "core" : "cores"}
+          </span>
+        );
+      },
     },
     {
       key: "architecture",
@@ -79,57 +157,50 @@ function NodesList() {
       render: (row: any) => formatArchitectureLabel(row),
     },
     {
-      key: "memoryUsage",
-      header: "Memory Usage",
+      key: "cpuUsage",
+      header: "Edgelet CPU Usage",
       render: (row: any) => (
-        <CustomProgressBar
-          value={row.memoryUsage}
-          max={row.systemAvailableMemory}
-          unit="agent"
-        />
+        <span className="text-xs text-gray-300 whitespace-nowrap">
+          {formatCpuCoresWithLimit(row.cpuUsage, row.cpuLimit)}
+        </span>
       ),
     },
     {
-      key: "cpuUsage",
-      header: "CPU Usage",
+      key: "memoryUsage",
+      header: "Edgelet Memory Usage",
       render: (row: any) => (
-        <CustomProgressBar value={row.cpuUsage} max={100} unit="%" />
+        <span className="text-xs text-gray-300 whitespace-nowrap">
+          {formatEdgeletMemory(row.memoryUsage, row.memoryLimit)}
+        </span>
       ),
     },
     {
       key: "diskUsage",
-      header: "Disk Usage",
+      header: "Data Directory",
       render: (row: any) => (
-        <CustomProgressBar
-          value={row.diskUsage}
-          max={row.diskLimit}
-          unit="agent-disk"
-        />
+        <span className="text-xs text-gray-300 whitespace-nowrap">
+          {formatDecimalGbPair(row.diskUsage, row.diskLimit)}
+        </span>
       ),
+    },
+    {
+      key: "systemTotalCpu",
+      header: "Host CPU Usage",
+      render: (row: any) => <HostCpuMetricBar row={row} />,
+    },
+    {
+      key: "systemTotalMemory",
+      header: "Host Memory",
+      render: (row: any) => <HostMemoryMetricBar row={row} />,
+    },
+    {
+      key: "systemTotalDisk",
+      header: "Host Disk (FS)",
+      render: (row: any) => <HostDiskFsMetricBar row={row} />,
     },
     {
       key: "version",
       header: "Version",
-    },
-    {
-      key: "daemonStatus",
-      header: "Status",
-      render: (row: any) => {
-        const statusKey = row.daemonStatus;
-        const bgColor = StatusColor[statusKey as StatusType] ?? "#9CA3AF";
-        const textColor = getTextColor(bgColor);
-        return (
-          <span
-            className="px-2 py-1 rounded-full text-xs font-semibold"
-            style={{
-              backgroundColor: bgColor,
-              color: textColor,
-            }}
-          >
-            {row.daemonStatus}
-          </span>
-        );
-      },
     },
   ];
 

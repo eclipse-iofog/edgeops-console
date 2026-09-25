@@ -7,6 +7,11 @@ import {
   MiBFactor,
   prettyBytes,
 } from "../../lib/formatting";
+import {
+  bubbleChartCpuAxisMax,
+  cpuUsageUnitsToCores,
+  formatCpuCoresWithLimit,
+} from "@/lib/formatting/resourceMetrics";
 
 interface AgentData {
   uuid: string;
@@ -15,6 +20,7 @@ interface AgentData {
   memoryUsage: number;
   diskUsage: number;
   cpuUsage: number;
+  cpuLimit?: number;
 }
 
 interface AgentDashboardProps {
@@ -157,7 +163,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
     name: status,
     color: StatusColor[status as keyof typeof StatusColor] || "#FFFFFF",
     data: statusGroups[status].map((agent) => ({
-      x: agent.cpuUsage || 0,
+      x: cpuUsageUnitsToCores(agent.cpuUsage),
+      cpuUsageUnits: agent.cpuUsage,
+      cpuLimitUnits: agent.cpuLimit,
       y: agent.memoryUsage
         ? (agent.memoryUsage * MiBFactor) / (1024 * 1024)
         : 0,
@@ -174,11 +182,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
   const maxMemory = Math.max(...memoryValues);
   const dynamicYMax = maxMemory > 0 ? Math.ceil(maxMemory * 1.2) : 1000;
 
-  const cpuValues = agentArray.map((agent) =>
-    agent.cpuUsage ? Number(agent.cpuUsage) : 0,
+  const cpuUsageCores = agentArray.map((agent) =>
+    cpuUsageUnitsToCores(agent.cpuUsage),
   );
-  const maxCpu = Math.max(...cpuValues);
-  const dynamicXMax = maxCpu > 0 ? Math.max(Math.ceil(maxCpu * 1.2), 20) : 100;
+  const cpuLimitCores = agentArray.map((agent) =>
+    cpuUsageUnitsToCores(agent.cpuLimit),
+  );
+  const dynamicXMax = bubbleChartCpuAxisMax({
+    usageCores: cpuUsageCores,
+    limitCores: cpuLimitCores,
+  });
 
   const bubbleChartOptions = {
     chart: {
@@ -248,7 +261,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
               <div style="padding:12px; color:#fff; font-family: Inter, system-ui, sans-serif; background: rgba(0,0,0,0.8); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #f3f4f6;">${point.name}</div>
                 <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">Status:</span> <span style="color: ${statusColor}; font-weight: 500;">${point.daemonStatus}</span></div>
-                <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">CPU:</span> <span style="color: #f3f4f6; font-weight: 500;">${point.x?.toFixed(2)}%</span></div>
+                <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">CPU:</span> <span style="color: #f3f4f6; font-weight: 500;">${formatCpuCoresWithLimit(point.cpuUsageUnits, point.cpuLimitUnits)}</span></div>
                 <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">Memory:</span> <span style="color: #f3f4f6; font-weight: 500;">${memoryPretty}</span></div>
                 <div><span style="color: #9ca3af;">Disk:</span> <span style="color: #f3f4f6; font-weight: 500;">${diskPretty}</span></div>
               </div>
@@ -256,11 +269,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
       },
     },
     xaxis: {
-      min: -5,
+      min: 0,
       max: dynamicXMax,
       tickAmount: 5,
       title: {
-        text: "CPU Usage (%)",
+        text: "CPU Usage (cores)",
         style: {
           color: "#e5e7eb",
           fontSize: "14px",
@@ -274,7 +287,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
           fontSize: "12px",
           fontWeight: "500",
         },
-        formatter: (val: string) => val + "%",
+        formatter: (val: string) => Number(val).toFixed(2),
       },
       axisBorder: {
         show: true,
@@ -341,9 +354,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
             <Cpu className="w-6 h-6 text-white" strokeWidth={2} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Edge Nodes</h1>
+            <h1 className="text-2xl font-bold text-white">Compute Nodes</h1>
             <p className="text-gray-400 text-sm">
-              Edge node monitoring and status
+              Compute Node monitoring and status
             </p>
           </div>
         </div>
@@ -391,7 +404,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
         <div className="w-full">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-white text-base sm:text-lg xl:text-xl 2xl:text-2xl font-semibold">
-              Edge Nodes Status Distribution
+              Compute Nodes Status Distribution
             </h2>
             <div className="text-xs sm:text-sm text-gray-400">Real-time</div>
           </div>

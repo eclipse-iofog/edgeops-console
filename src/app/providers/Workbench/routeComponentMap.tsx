@@ -14,6 +14,10 @@ import CatalogMicroservices from "@/features/cluster-config/catalogMicroservices
 import Registries from "@/features/cluster-config/registries";
 import ConfigMaps from "@/features/cluster-config/configMaps";
 import VolumeMounts from "@/features/cluster-config/volumeMounts";
+import Models from "@/features/cluster-config/models";
+import Knowledge from "@/features/cluster-config/knowledge";
+import RuntimeClasses from "@/features/cluster-config/runtimeClasses";
+import MicroserviceTemplates from "@/features/cluster-config/microserviceTemplates";
 import Secrets from "@/features/cluster-config/secret";
 import Certificates from "@/features/cluster-config/certificates";
 import Services from "@/features/cluster-config/services";
@@ -70,6 +74,10 @@ export function createWorkbenchRouteElements({
       <Route path="/nodes/mesh-graph" Component={MeshGraphPage} />
       <Route path="/config/AppTemplates" Component={AppTemplates} />
       <Route
+        path="/config/MicroserviceTemplates"
+        Component={MicroserviceTemplates}
+      />
+      <Route
         path="/config/CatalogMicroservices"
         Component={CatalogMicroservices}
       />
@@ -77,6 +85,9 @@ export function createWorkbenchRouteElements({
       <Route path="/config/ConfigMaps" Component={ConfigMaps} />
       <Route path="/config/secret" Component={Secrets} />
       <Route path="/config/VolumeMounts" Component={VolumeMounts} />
+      <Route path="/config/Models" Component={Models} />
+      <Route path="/config/Knowledge" Component={Knowledge} />
+      <Route path="/config/RuntimeClasses" Component={RuntimeClasses} />
       <Route path="/config/certificates" Component={Certificates} />
       <Route path="/config/services" Component={Services} />
       <Route path="/config/pollingSettings" Component={PollingSettings} />

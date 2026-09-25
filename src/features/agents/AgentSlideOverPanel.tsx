@@ -29,6 +29,7 @@ import {
   isCriticalAgent,
   VersionCommandConfig,
 } from "@/lib/agentCritical";
+import { AGENT_PRUNE_CONFIRM_MESSAGE } from "./agentFogStatus";
 import { buildAgentSlideOverFields } from "./agentSlideOverFields";
 import { isPlatformReconciling } from "@/lib/platformReconcile";
 
@@ -576,9 +577,7 @@ const AgentSlideOverPanel: React.FC<AgentSlideOverPanelProps> = ({
         onCancel={() => setShowCleanConfirmModal(false)}
         onConfirm={handleClean}
         title={`Pruning Agent ${selectedNode?.name}`}
-        message={
-          "This action will remove all unused container images from the selected agent. Images not associated with a running microservice will be permanently deleted. Make sure all necessary images are in use before proceeding.\n \nThis is not reversible!"
-        }
+        message={AGENT_PRUNE_CONFIRM_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Prune"}
       />

@@ -13,6 +13,10 @@ export type ResourceStoreId =
   | "configMaps"
   | "secrets"
   | "volumeMounts"
+  | "models"
+  | "knowledge"
+  | "runtimeClasses"
+  | "microserviceTemplates"
   | "certificates"
   | "services"
   | "roles"
@@ -77,10 +81,10 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
     workbenchEligible: true,
   },
   {
-    path: "/config/AppTemplates",
-    title: "App Templates",
+    path: "/config/Registries",
+    title: "Registries",
     pollMode: "off",
-    resourceStoreId: "applicationTemplates",
+    resourceStoreId: "registries",
     workbenchEligible: true,
   },
   {
@@ -91,10 +95,31 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
     workbenchEligible: true,
   },
   {
-    path: "/config/Registries",
-    title: "Registries",
+    path: "/config/Models",
+    title: "AI Model Catalog",
+    pollMode: "light",
+    resourceStoreId: "models",
+    workbenchEligible: true,
+  },
+  {
+    path: "/config/Knowledge",
+    title: "AI Knowledge Catalog",
+    pollMode: "light",
+    resourceStoreId: "knowledge",
+    workbenchEligible: true,
+  },
+  {
+    path: "/config/AppTemplates",
+    title: "App Templates",
     pollMode: "off",
-    resourceStoreId: "registries",
+    resourceStoreId: "applicationTemplates",
+    workbenchEligible: true,
+  },
+  {
+    path: "/config/MicroserviceTemplates",
+    title: "Microservice Templates",
+    pollMode: "off",
+    resourceStoreId: "microserviceTemplates",
     workbenchEligible: true,
   },
   {
@@ -112,6 +137,13 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
     workbenchEligible: true,
   },
   {
+    path: "/config/certificates",
+    title: "Certificates",
+    pollMode: "off",
+    resourceStoreId: "certificates",
+    workbenchEligible: true,
+  },
+  {
     path: "/config/VolumeMounts",
     title: "Volume Mounts",
     pollMode: "light",
@@ -119,10 +151,10 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
     workbenchEligible: true,
   },
   {
-    path: "/config/certificates",
-    title: "Certificates",
-    pollMode: "off",
-    resourceStoreId: "certificates",
+    path: "/config/RuntimeClasses",
+    title: "Runtime Classes",
+    pollMode: "light",
+    resourceStoreId: "runtimeClasses",
     workbenchEligible: true,
   },
   {
@@ -162,14 +194,14 @@ export const WORKBENCH_ROUTES: WorkbenchRoute[] = [
   },
   {
     path: "/access-control/nats-account-rules",
-    title: "NATs Account Rules",
+    title: "NATS Account Rules",
     pollMode: "off",
     resourceStoreId: "natsAccountRules",
     workbenchEligible: true,
   },
   {
     path: "/access-control/nats-user-rules",
-    title: "NATs User Rules",
+    title: "NATS User Rules",
     pollMode: "off",
     resourceStoreId: "natsUserRules",
     workbenchEligible: true,
@@ -250,13 +282,17 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroupDef[] = [
     id: "config",
     label: "Config",
     childPaths: [
-      "/config/AppTemplates",
-      "/config/CatalogMicroservices",
       "/config/Registries",
+      "/config/CatalogMicroservices",
+      "/config/Models",
+      "/config/Knowledge",
+      "/config/AppTemplates",
+      "/config/MicroserviceTemplates",
       "/config/ConfigMaps",
       "/config/secret",
-      "/config/VolumeMounts",
       "/config/certificates",
+      "/config/VolumeMounts",
+      "/config/RuntimeClasses",
     ],
   },
   {
