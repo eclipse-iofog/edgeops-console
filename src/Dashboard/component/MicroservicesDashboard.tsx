@@ -4,17 +4,22 @@ import ResponsiveApexChart from "@/components/ui/ResponsiveApexChart";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { MiBFactor, prettyBytes } from "../../lib/formatting";
 import {
+  bubbleChartCpuAxisMax,
   cpuUsageUnitsToCores,
   formatMicroserviceCpuDisplay,
 } from "@/lib/formatting/resourceMetrics";
 
 interface MicroservicesDashboardProps {
   applications: any[];
+  reducedAgents?: {
+    byUUID?: Record<string, { name?: string }>;
+  };
   title: string;
 }
 
 const MicroservicesDashboard: React.FC<MicroservicesDashboardProps> = ({
   applications,
+  reducedAgents,
   title,
 }) => {
   if (!applications) {
@@ -32,8 +37,13 @@ const MicroservicesDashboard: React.FC<MicroservicesDashboardProps> = ({
     );
   }
 
-  const allMicroservices = applications.flatMap(
-    (app) => app.microservices || [],
+  const allMicroservices = applications.flatMap((app) =>
+    (app.microservices || []).map((msvc: any) => ({
+      ...msvc,
+      applicationName: msvc.application ?? app.name,
+      edgeNodeName:
+        reducedAgents?.byUUID?.[msvc.iofogUuid]?.name ?? "—",
+    })),
   );
   const totalMicroservices = allMicroservices.length;
 
@@ -179,6 +189,8 @@ const MicroservicesDashboard: React.FC<MicroservicesDashboardProps> = ({
           : 0,
         z: 10,
         name: msvc.name,
+        applicationName: msvc.applicationName,
+        edgeNodeName: msvc.edgeNodeName,
       })),
   }));
 
@@ -188,12 +200,14 @@ const MicroservicesDashboard: React.FC<MicroservicesDashboardProps> = ({
   const maxMemory = Math.max(...memoryValues, 100);
   const dynamicYMax = maxMemory > 0 ? Math.ceil(maxMemory * 1.2) : 100;
 
-  const cpuValues = allMicroservices.map((msvc) =>
+  const cpuUsageCores = allMicroservices.map((msvc) =>
     cpuUsageUnitsToCores(msvc.status?.cpuUsage),
   );
-  const maxCpu = Math.max(...cpuValues, 0);
-  const dynamicXMax =
-    maxCpu > 0 ? Math.max(Number((maxCpu * 1.2).toFixed(2)), 0.5) : 1;
+  const cpuLimitCores = allMicroservices.map((msvc) => Number(msvc.cpus));
+  const dynamicXMax = bubbleChartCpuAxisMax({
+    usageCores: cpuUsageCores,
+    limitCores: cpuLimitCores,
+  });
 
   const bubbleChartOptions = {
     chart: {
@@ -252,6 +266,8 @@ const MicroservicesDashboard: React.FC<MicroservicesDashboardProps> = ({
         return `
           <div style="padding:12px; color:#fff; font-family: Inter, system-ui, sans-serif; background: rgba(0,0,0,0.8); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #f3f4f6;">${point.name}</div>
+            <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">Application:</span> <span style="color: #f3f4f6; font-weight: 500;">${point.applicationName ?? "—"}</span></div>
+            <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">Edge node:</span> <span style="color: #f3f4f6; font-weight: 500;">${point.edgeNodeName ?? "—"}</span></div>
             <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">Status:</span> <span style="color: ${statusColor}; font-weight: 500;">${uniqueStatuses[seriesIndex]}</span></div>
             <div style="margin-bottom: 4px;"><span style="color: #9ca3af;">CPU:</span> <span style="color: #f3f4f6; font-weight: 500;">${formatMicroserviceCpuDisplay(point.cpuUsageUnits, point.cpus)}</span></div>
             <div><span style="color: #9ca3af;">Memory:</span> <span style="color: #f3f4f6; font-weight: 500;">${memoryPretty}</span></div>

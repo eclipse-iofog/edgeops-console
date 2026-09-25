@@ -126,10 +126,12 @@ const Dashboard = () => {
           />
           <MicroservicesDashboard
             applications={data?.applications}
+            reducedAgents={data?.reducedAgents}
             title='Microservice'
           />
           <SystemMicroservicesDashboard
             systemApplications={data?.systemApplications}
+            reducedAgents={data?.reducedAgents}
             title='System Microservice'
           />
         </div>
