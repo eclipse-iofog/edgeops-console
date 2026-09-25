@@ -19,6 +19,24 @@ type DrawerTab = {
   onClose?: () => void;
 };
 
+const APPLICATION_TEMPLATE_FORM_PREFIX = "Application Template Form:";
+const MICROSERVICE_TEMPLATE_FORM_PREFIX = "Microservice Template Form:";
+
+const getTemplateFormKind = (
+  title?: string,
+): "application" | "microservice" | null => {
+  if (!title) {
+    return null;
+  }
+  if (title.includes(APPLICATION_TEMPLATE_FORM_PREFIX)) {
+    return "application";
+  }
+  if (title.includes(MICROSERVICE_TEMPLATE_FORM_PREFIX)) {
+    return "microservice";
+  }
+  return null;
+};
+
 type ResizableBottomDrawerProps = {
   open: boolean;
   isEdit: boolean;
@@ -292,11 +310,15 @@ const ResizableBottomDrawer = ({
                               );
                               return `Shell into ${shellTarget}`;
                             } else if (
-                              activeTab.title?.includes(
-                                "Application Template Form:",
-                              )
+                              getTemplateFormKind(activeTab.title) ===
+                              "application"
                             ) {
-                              return `Deploying Application from ${activeTab.title.replace("Application Template Form: ", "")} Template`;
+                              return `Deploying Application from ${activeTab.title.replace(`${APPLICATION_TEMPLATE_FORM_PREFIX} `, "")} Template`;
+                            } else if (
+                              getTemplateFormKind(activeTab.title) ===
+                              "microservice"
+                            ) {
+                              return `Deploying Microservice from ${activeTab.title.replace(`${MICROSERVICE_TEMPLATE_FORM_PREFIX} `, "")} Template`;
                             } else if (activeTab.title?.includes("YAML:")) {
                               return `Editing ${activeTab.title.replace("YAML: ", "")} YAML`;
                             } else if (activeTab.title?.includes("Logs:")) {
@@ -321,9 +343,9 @@ const ResizableBottomDrawer = ({
                             Save Changes
                           </button>
                         )}
-                      {tabs
-                        .find((tab) => tab.id === activeTabId)
-                        ?.title?.includes("Application Template Form:") &&
+                      {getTemplateFormKind(
+                        tabs.find((tab) => tab.id === activeTabId)?.title,
+                      ) &&
                         isEdit && (
                           <button
                             onClick={onSave}

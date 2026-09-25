@@ -19,6 +19,8 @@ import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
 import { useTerminal } from "@/app/providers";
 import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
 import { architectures } from "../../../lib/formatting";
+import { imageRegistryRejection } from "@/lib/registryCa";
+import CatalogImageRegistryPicker from "./CatalogImageRegistryPicker";
 
 const DEPLOY_ARCH_IDS = [1, 2, 3, 4] as const;
 
@@ -33,6 +35,7 @@ function CatalogMicroservices() {
     items: catalog,
     loading: listLoading,
   } = useResourceList("catalogMicroservices");
+  const { items: registries } = useResourceList<any>("registries");
   const catalogMicroservicesStore = useResourceStore("catalogMicroservices");
   const [detailFetching, setDetailFetching] = useState(false);
   const { request } = React.useContext(ControllerContext);
@@ -179,6 +182,14 @@ function CatalogMicroservices() {
       ...item,
       images: normalizeCatalogImages(item.images),
     };
+    const registryError = imageRegistryRejection(
+      registries as any[],
+      newItem.registryId,
+    );
+    if (registryError) {
+      pushFeedback({ message: registryError, type: "error" });
+      return;
+    }
     setLoadingMessage(
       method === "PATCH" ? "Catalog Updating..." : "Catalog Adding...",
     );
@@ -205,6 +216,7 @@ function CatalogMicroservices() {
         type: "success",
       });
       await catalogMicroservicesStore.fetch({ silent: true });
+      await handleRefreshCatalogMicroservice();
       setLoading(false);
     } else {
       pushFeedback({ message: response?.message, type: "error" });
@@ -358,17 +370,33 @@ function CatalogMicroservices() {
     // },
     {
       label: "Registry Id",
-      render: (row: any) => {
-        if (!row?.registryId) return <span className="text-gray-400">N/A</span>;
-        return (
-          <ResourceLink
-            path="/config/Registries"
-            query={{ registryId: row.registryId }}
-          >
-            {row.registryId}
-          </ResourceLink>
-        );
-      },
+      isFullSection: true,
+      render: (row: any) => (
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-gray-300">Registry Id</div>
+          <CatalogImageRegistryPicker
+            registryId={row?.registryId}
+            registries={registries as any[]}
+            saving={loading}
+            onSave={async (nextRegistryId) => {
+              const parsed = Number(nextRegistryId);
+              await postCatalogItem(
+                {
+                  name: row.name,
+                  description: row.description,
+                  category: row.category,
+                  images: row.images,
+                  registryId: Number.isNaN(parsed)
+                    ? nextRegistryId
+                    : parsed,
+                  configExample: row.configExample,
+                },
+                "PATCH",
+              );
+            }}
+          />
+        </div>
+      ),
     },
     {
       label: "Images",

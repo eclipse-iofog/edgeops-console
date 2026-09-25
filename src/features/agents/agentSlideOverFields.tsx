@@ -2,17 +2,63 @@ import React from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import ResourceLink from "@/components/ui/ResourceLink";
 import CustomDataTable from "@/components/ui/CustomDataTable";
+import { formatArchitectureLabel, getTextColor } from "@/lib/formatting";
 import {
-  formatAgentDiskUsage,
-  formatArchitectureLabel,
-  getTextColor,
-  MiBFactor,
-  prettyBytes,
-} from "@/lib/formatting";
+  displayOrDash,
+  HostCpuMetricBar,
+  HostDiskFsMetricBar,
+  HostMemoryMetricBar,
+} from "@/components/ui/EdgeletHostMetricCells";
+import {
+  formatCpuCoresWithLimit,
+  formatDecimalGbPair,
+  formatEdgeletMemory,
+  formatHostBytesUsedTotal,
+  formatHostCpuPercentLabel,
+  isResourceViolation,
+} from "@/lib/formatting/resourceMetrics";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import { BadgeList } from "@/AccessControl/utils/badgeHelpers";
 import { formatAgentDuration } from "./formatAgentDuration";
 import { PlatformStatusBadge, ReconcileActionControl } from "@/lib/platformReconcile";
+import {
+  displayActiveModels,
+  displayFogValue,
+  formatTotalBytes,
+  formatUnixMilliseconds,
+  isManagedModelSource,
+  parseCdiDeviceNames,
+  parseModelStatusRows,
+  parseRuntimeClassRows,
+} from "./agentFogStatus";
+
+function noneFoundForAgent(resource: string) {
+  return (
+    <div className="text-sm text-gray-400">
+      No {resource} found for this agent.
+    </div>
+  );
+}
+
+function renderViolationFlag(value: unknown) {
+  const violated = isResourceViolation(value);
+  return (
+    <span className={violated ? "text-amber-300 font-medium" : "text-gray-300"}>
+      {violated ? "Yes" : "No"}
+    </span>
+  );
+}
+
+function formatLogicalCpus(value: unknown) {
+  if (value == null || value === "") {
+    return "N/A";
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return displayOrDash(value);
+  }
+  return `${n} ${n === 1 ? "core" : "cores"}`;
+}
 
 const renderAgentTags = (tags: any) => {
   if (!tags) return "N/A";
@@ -272,34 +318,127 @@ export const buildAgentSlideOverFields = (
       },
     },
     {
-      label: "Resource Utilization",
+      label: "Host",
       render: () => "",
       isSectionHeader: true,
     },
     {
-      label: "CPU Usage",
-      render: (node: any) => `${(Number(node.cpuUsage) || 0)?.toFixed(2)}%`,
+      label: "Logical CPUs",
+      render: (node: any) => formatLogicalCpus(node.systemCpus),
     },
     {
-      label: "System Total CPU",
-      render: (node: any) => `${node.systemTotalCpu?.toFixed(2)}%`,
-    },
-    {
-      label: "Memory Usage",
+      label: "Host OS",
       render: (node: any) =>
-        `${prettyBytes(node.memoryUsage * MiBFactor || 0)}`,
+        node.systemOs != null && node.systemOs !== ""
+          ? String(node.systemOs)
+          : "N/A",
     },
     {
-      label: "System Available Memory",
-      render: (node: any) => `${prettyBytes(node.systemAvailableMemory || 0)}`,
+      label: "OS version",
+      render: (node: any) => displayOrDash(node.systemOsVersion),
     },
     {
-      label: "Disk Usage",
-      render: (node: any) => formatAgentDiskUsage(node.diskUsage),
+      label: "Kernel",
+      render: (node: any) => {
+        const os = String(node.systemOs ?? "").toLowerCase();
+        if (os !== "linux") {
+          return "N/A";
+        }
+        const kernel = node.systemKernelVersion;
+        return kernel != null && kernel !== "" ? String(kernel) : "—";
+      },
     },
     {
-      label: "System Available Disk",
-      render: (node: any) => `${prettyBytes(node.systemAvailableDisk || 0)}`,
+      label: "Host CPU usage",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostCpuPercentLabel(node.systemTotalCpu)}
+          </span>
+          <HostCpuMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "Host memory",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostBytesUsedTotal(
+              node.systemTotalMemory,
+              node.systemAvailableMemory,
+            )}
+          </span>
+          <HostMemoryMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "Host disk (FS)",
+      render: (node: any) => (
+        <div className="max-w-md space-y-1">
+          <span className="text-sm text-gray-300 block">
+            {formatHostBytesUsedTotal(
+              node.systemTotalDisk,
+              node.systemAvailableDisk,
+            )}
+          </span>
+          <HostDiskFsMetricBar row={node} />
+        </div>
+      ),
+    },
+    {
+      label: "",
+      render: () => (
+        <p className="text-xs text-gray-500">
+          Host fields are informational inventory, not Edge Guard attestation.
+        </p>
+      ),
+    },
+    {
+      label: "Edgelet stack",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "Edgelet CPU usage",
+      render: (node: any) =>
+        formatCpuCoresWithLimit(node.cpuUsage, node.cpuLimit),
+    },
+    {
+      label: "CPU violation",
+      render: (node: any) => renderViolationFlag(node.cpuViolation),
+    },
+    {
+      label: "Edgelet memory usage",
+      render: (node: any) =>
+        formatEdgeletMemory(node.memoryUsage, node.memoryLimit),
+    },
+    {
+      label: "Memory violation",
+      render: (node: any) => renderViolationFlag(node.memoryViolation),
+    },
+    {
+      label: "Data directory",
+      render: (node: any) =>
+        formatDecimalGbPair(node.diskUsage, node.diskLimit),
+    },
+    {
+      label: "Data directory path",
+      render: (node: any) => node.diskDirectory || "N/A",
+    },
+    {
+      label: "Disk violation",
+      render: (node: any) => renderViolationFlag(node.diskViolation),
+    },
+    {
+      label: "",
+      render: () => (
+        <p className="text-xs text-gray-500">
+          Data directory usage is Edgelet policy storage, not the host
+          filesystem totals above.
+        </p>
+      ),
     },
     {
       label: "Volume Mounts",
@@ -388,6 +527,263 @@ export const buildAgentSlideOverFields = (
       },
     },
     {
+      label: "Applied Runtime Classes",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseRuntimeClassRows(node.runtimeClasses);
+        if (rows.length === 0) {
+          return noneFoundForAgent("runtime classes");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              return (
+                <ResourceLink
+                  path="/config/RuntimeClasses"
+                  query={{ runtimeClassName: row.name }}
+                >
+                  {row.name}
+                </ResourceLink>
+              );
+            },
+          },
+          {
+            key: "handler",
+            header: "Handler",
+            render: (row: any) => displayFogValue(row.handler),
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.handler].filter(Boolean).join("-") ||
+              "runtime-class"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "AI model status",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseModelStatusRows(node.modelStatus);
+        if (rows.length === 0) {
+          return noneFoundForAgent("AI models");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              if (!isManagedModelSource(row.source)) {
+                return <span>{row.name}</span>;
+              }
+              return (
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <ResourceLink
+                    path="/config/Models"
+                    query={{ modelName: row.name }}
+                  >
+                    {row.name}
+                  </ResourceLink>
+                  {row.uuid ? (
+                    <span className="text-xs text-gray-400">{row.uuid}</span>
+                  ) : null}
+                </span>
+              );
+            },
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+          {
+            key: "state",
+            header: "State",
+            render: (row: any) => displayFogValue(row.state),
+          },
+          {
+            key: "digest",
+            header: "Digest",
+            render: (row: any) => displayFogValue(row.digest),
+          },
+          {
+            key: "resolvedRevision",
+            header: "Resolved Revision",
+            render: (row: any) => displayFogValue(row.resolvedRevision),
+          },
+          {
+            key: "revisionFloating",
+            header: "Revision Floating",
+            render: (row: any) => displayFogValue(row.revisionFloating),
+          },
+          {
+            key: "totalBytes",
+            header: "Total Bytes",
+            render: (row: any) => formatTotalBytes(row.totalBytes),
+          },
+          {
+            key: "lastError",
+            header: "Last Error",
+            render: (row: any) => displayFogValue(row.lastError),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.digest, row.state]
+                .filter(Boolean)
+                .join("-") ||
+              "model-status"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "Active models",
+      render: (row: any) => displayActiveModels(row.activeModels),
+    },
+    {
+      label: "Model last update",
+      render: (row: any) => formatUnixMilliseconds(row.modelLastUpdate),
+    },
+    {
+      label: "AI Knowledge status",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (node: any) => {
+        const rows = parseModelStatusRows(node.knowledgeStatus);
+        if (rows.length === 0) {
+          return noneFoundForAgent("Knowledge");
+        }
+
+        const localColumns = [
+          {
+            key: "name",
+            header: "Name",
+            render: (row: any) => {
+              if (!row?.name) {
+                return <span className="text-gray-400">No name</span>;
+              }
+              if (!isManagedModelSource(row.source)) {
+                return <span>{row.name}</span>;
+              }
+              return (
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <ResourceLink
+                    path="/config/Knowledge"
+                    query={{ knowledgeName: row.name }}
+                  >
+                    {row.name}
+                  </ResourceLink>
+                  {row.uuid ? (
+                    <span className="text-xs text-gray-400">{row.uuid}</span>
+                  ) : null}
+                </span>
+              );
+            },
+          },
+          {
+            key: "source",
+            header: "Source",
+            render: (row: any) => displayFogValue(row.source),
+          },
+          {
+            key: "state",
+            header: "State",
+            render: (row: any) => displayFogValue(row.state),
+          },
+          {
+            key: "digest",
+            header: "Digest",
+            render: (row: any) => displayFogValue(row.digest),
+          },
+          {
+            key: "resolvedRevision",
+            header: "Resolved Revision",
+            render: (row: any) => displayFogValue(row.resolvedRevision),
+          },
+          {
+            key: "revisionFloating",
+            header: "Revision Floating",
+            render: (row: any) => displayFogValue(row.revisionFloating),
+          },
+          {
+            key: "totalBytes",
+            header: "Total Bytes",
+            render: (row: any) => formatTotalBytes(row.totalBytes),
+          },
+          {
+            key: "lastError",
+            header: "Last Error",
+            render: (row: any) => displayFogValue(row.lastError),
+          },
+        ];
+
+        return (
+          <CustomDataTable
+            columns={localColumns}
+            data={rows}
+            getRowKey={(row: any) =>
+              row.uuid ||
+              [row.name, row.source, row.digest, row.state]
+                .filter(Boolean)
+                .join("-") ||
+              "knowledge-status"
+            }
+          />
+        );
+      },
+    },
+    {
+      label: "Active knowledge",
+      render: (row: any) => displayActiveModels(row.activeKnowledge),
+    },
+    {
+      label: "Knowledge last update",
+      render: (row: any) => formatUnixMilliseconds(row.knowledgeLastUpdate),
+    },
+    {
       label: "Status",
       render: () => "",
       isSectionHeader: true,
@@ -397,6 +793,16 @@ export const buildAgentSlideOverFields = (
       render: (row: any) => (
         <BadgeList items={row.availableRuntimes} emptyLabel="N/A" />
       ),
+    },
+    {
+      label: "Available CDI devices",
+      render: (row: any) => {
+        const devices = parseCdiDeviceNames(row.availableCdiDevices);
+        if (devices.length === 0) {
+          return noneFoundForAgent("CDI devices");
+        }
+        return <BadgeList items={devices} emptyLabel="N/A" />;
+      },
     },
     {
       label: "Runtime Agent Phase",
@@ -433,27 +839,6 @@ export const buildAgentSlideOverFields = (
       render: (node: any) => {
         return node.gpsStatus || "N/A";
       },
-    },
-    {
-      label: "Cpu Violation",
-      render: (row: any) =>
-        row.cpuViolation === "0" || row.cpuViolation === "false"
-          ? "false"
-          : "true",
-    },
-    {
-      label: "Disk Violation",
-      render: (row: any) =>
-        row.diskViolation === "0" || row.diskViolation === "false"
-          ? "false"
-          : "true",
-    },
-    {
-      label: "Memory Violation",
-      render: (row: any) =>
-        row.memoryViolation === "0" || row.memoryViolation === "false"
-          ? "false"
-          : "true",
     },
     {
       label: "Is Ready To Rollback",

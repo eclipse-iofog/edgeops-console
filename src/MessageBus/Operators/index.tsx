@@ -58,7 +58,7 @@ function Operators() {
   //     return;
   //   }
   //   pushFeedback({
-  //     message: "NATs operator rotation has been scheduled.",
+  //     message: "NATS operator rotation has been scheduled.",
   //     type: "success",
   //   });
   //   setShowRotateModal(false);
@@ -68,7 +68,7 @@ function Operators() {
   return (
     <div className="bg-gray-900 text-white p-4">
       <h1 className="text-2xl font-bold mb-4 text-white border-b border-gray-700 pb-2">
-        NATs Operators
+        NATS Operators
       </h1>
 
       <div className="flex gap-2 mb-4 items-center">
@@ -100,7 +100,7 @@ function Operators() {
         </div>
 
         <div className="bg-gray-800 rounded border border-gray-700 p-4 text-sm">
-          <div className="text-gray-300 font-semibold mb-2">NATs Hub</div>
+          <div className="text-gray-300 font-semibold mb-2">NATS Hub</div>
           <pre className="text-xs whitespace-pre-wrap break-all bg-gray-900 p-3 rounded border border-gray-700">
             {JSON.stringify(hub || {}, null, 2)}
           </pre>
@@ -111,8 +111,8 @@ function Operators() {
         open={showRotateModal}
         onCancel={() => setShowRotateModal(false)}
         onConfirm={handleRotate}
-        title="Rotate NATs Operator"
-        message="Rotating the operator key re-signs NATs accounts/users and can impact messaging authentication cluster-wide. During reconciliation, clients may see temporary auth failures and require reconnects. Proceed only in a planned maintenance window with rollback readiness."
+        title="Rotate NATS Operator"
+        message="Rotating the operator key re-signs NATS accounts/users and can impact messaging authentication cluster-wide. During reconciliation, clients may see temporary auth failures and require reconnects. Proceed only in a planned maintenance window with rollback readiness."
         cancelLabel="Cancel"
         confirmLabel="Rotate"
       /> */}

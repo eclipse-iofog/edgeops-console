@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ApexCharts from "react-apexcharts";
+import { cpuUsageUnitsToCores } from "@/lib/formatting/resourceMetrics";
 
 const ApplicationDashboard = ({ applications, title }: any) => {
   const [chartDataCpu, setChartDataCpu] = useState<any>({});
@@ -29,7 +30,7 @@ const ApplicationDashboard = ({ applications, title }: any) => {
       name: app.name,
       data: uniqueMicroservices.map((msName) => {
         const micro = app.microservices.find((m: any) => m.name === msName);
-        return micro ? micro.status.cpuUsage : null;
+        return micro ? cpuUsageUnitsToCores(micro.status.cpuUsage) : null;
       }),
     }));
 
@@ -63,13 +64,26 @@ const ApplicationDashboard = ({ applications, title }: any) => {
               },
             },
           },
+          yaxis: {
+            title: {
+              text: "CPU Usage (cores)",
+              style: { color: "#fff" },
+            },
+            labels: {
+              style: { colors: "#fff" },
+              formatter: (val: number) => Number(val).toFixed(2),
+            },
+          },
           tooltip: {
             x: {
               formatter: (val: string) => val,
             },
+            y: {
+              formatter: (val: number) => `${Number(val).toFixed(2)} cores`,
+            },
           },
           title: {
-            text: "CPU Usage per Microservice",
+            text: "CPU Usage per Microservice (cores)",
             align: "left",
             style: {
               color: "#fff",

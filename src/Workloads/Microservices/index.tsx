@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { useData } from "@/app/providers";
+import { useData, useResourceList } from "@/app/providers";
 import CustomDataTable from "@/components/ui/CustomDataTable";
-import CustomProgressBar from "@/components/ui/CustomProgressBar";
+import {
+  MicroserviceCpuCell,
+  MicroserviceMemoryCell,
+} from "@/components/ui/WorkloadResourceCells";
+import {
+  formatCpuCores,
+  formatMicroserviceMemory,
+} from "@/lib/formatting/resourceMetrics";
 import SlideOver from "@/components/ui/SlideOver";
 import { formatDistanceToNow, format } from "date-fns";
 import { useController } from "@/app/providers";
@@ -34,11 +41,26 @@ import LogConfigModal, {
 import { useAuth } from "../../auth";
 import { getWsBaseUrl } from "../../auth/api";
 import { useUnifiedYamlUpload } from "../../hooks/useUnifiedYamlUpload";
+import { imageRegistryRejection } from "@/lib/registryCa";
+import MicroserviceAiModelsEditor from "./MicroserviceAiModelsEditor";
+import MicroserviceKnowledgeEditor from "./MicroserviceKnowledgeEditor";
+import { importantContainerSpecFields } from "./importantContainerSpecFields";
+import { podIdSlideoverFields } from "./podIdSlideoverField";
+import { microserviceCrashSlideoverFields } from "./microserviceCrashStatusFields";
+import {
+  MICROSERVICE_DELETE_MESSAGE,
+  VOLUME_MAPPING_DELETE_MESSAGE,
+  canDeleteVolumeMapping,
+  toVolumeMappingRow,
+} from "./volumeMappingRows";
 
 function MicroservicesList() {
   const { data, refreshData } = useData();
   const { request } = useController();
   const { pushFeedback } = useFeedback();
+  const { items: fleetModels } = useResourceList<any>("models");
+  const { items: fleetKnowledge } = useResourceList<any>("knowledge");
+  const { items: registries } = useResourceList<any>("registries");
   const [selectedMs, setSelectedMs] = useState<any | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [editorDataChanged, setEditorDataChanged] = React.useState<any>();
@@ -194,12 +216,15 @@ function MicroservicesList() {
 
   const handleVolumeDelete = async () => {
     try {
-      const res = await request(`/api/v3/microservices/${selectedMs.uuid}`, {
-        method: "DELETE",
-        headers: {
-          "content-type": "application/json",
+      const res = await request(
+        `/api/v3/microservices/${selectedMs.uuid}/volume-mapping/${selectedVolume?.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+          },
         },
-      });
+      );
       if (!res.ok) {
         pushFeedback({ message: res.message, type: "error" });
       } else {
@@ -369,6 +394,14 @@ function MicroservicesList() {
         throw new Error(err);
       }
       const newMicroservice = microserviceData;
+      const registryError = imageRegistryRejection(
+        registries as any[],
+        newMicroservice?.registryId,
+      );
+      if (registryError) {
+        pushFeedback({ message: registryError, type: "error" });
+        throw new Error(registryError);
+      }
       const res = await deployMicroservice(newMicroservice, method);
       if (!res || !res.ok) {
         try {
@@ -583,21 +616,12 @@ function MicroservicesList() {
     {
       key: "cpuUsage",
       header: "CPU Usage",
-      render: (row: any) => {
-        const usage = Number(row?.status?.cpuUsage || 0);
-        return <CustomProgressBar value={usage} max={100} unit="%" />;
-      },
+      render: (row: any) => <MicroserviceCpuCell row={row} />,
     },
     {
       key: "memoryUsage",
       header: "Memory Usage",
-      render: (row: any) => (
-        <CustomProgressBar
-          value={row?.status?.memoryUsage}
-          max={data.reducedAgents.byUUID[row?.iofogUuid]?.systemAvailableMemory}
-          unit="microservice"
-        />
-      ),
+      render: (row: any) => <MicroserviceMemoryCell row={row} />,
     },
     {
       key: "status",
@@ -734,6 +758,68 @@ function MicroservicesList() {
       },
     },
     {
+      label: "NATS Config",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => {
+        const natsAccess = row?.natsConfig?.natsAccess ?? row?.natsAccess;
+        const natsRule = row?.natsConfig?.natsRule ?? row?.natsRule;
+        const natsRuleId = row?.natsRuleId;
+        const hasNatsConfig =
+          natsAccess !== undefined ||
+          Boolean(natsRule) ||
+          (natsRuleId !== undefined && natsRuleId !== null);
+
+        if (!hasNatsConfig) {
+          return <div className="text-sm text-gray-400">No NATS config.</div>;
+        }
+
+        return (
+          <div className="rounded-md border border-gray-700 bg-gray-800/40 p-3">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-xs text-gray-400">Access</span>
+              <span
+                className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  natsAccess === true
+                    ? "bg-emerald-600/30 text-emerald-300"
+                    : natsAccess === false
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-600/40 text-gray-300"
+                }`}
+              >
+                {natsAccess === undefined
+                  ? "N/A"
+                  : natsAccess
+                    ? "ENABLED"
+                    : "DISABLED"}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-400">Rule</span>
+              <span className="text-sm font-medium break-all">
+                {natsRule ? (
+                  <ResourceLink
+                    path="/access-control/nats-user-rules"
+                    query={{ ruleName: natsRule }}
+                  >
+                    {natsRule}
+                  </ResourceLink>
+                ) : natsRuleId !== undefined && natsRuleId !== null ? (
+                  `${natsRuleId}`
+                ) : (
+                  "N/A"
+                )}
+              </span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
       label: "Images",
       render: () => "",
       isSectionHeader: true,
@@ -783,60 +869,7 @@ function MicroservicesList() {
         );
       },
     },
-    {
-      label: "NATs Config",
-      render: () => "",
-      isSectionHeader: true,
-    },
-    {
-      label: "",
-      isFullSection: true,
-      render: (row: any) => {
-        const natsAccess = row?.natsConfig?.natsAccess ?? row?.natsAccess;
-        const natsRule = row?.natsConfig?.natsRule ?? row?.natsRule;
-        const natsRuleId = row?.natsRuleId;
-        const hasNatsConfig =
-          natsAccess !== undefined ||
-          Boolean(natsRule) ||
-          (natsRuleId !== undefined && natsRuleId !== null);
-
-        if (!hasNatsConfig) {
-          return <div className="text-sm text-gray-400">No NATs config.</div>;
-        }
-
-        return (
-          <div className="rounded-md border border-gray-700 bg-gray-800/40 p-3">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-xs text-gray-400">Access</span>
-              <span
-                className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  natsAccess === true
-                    ? "bg-emerald-600/30 text-emerald-300"
-                    : natsAccess === false
-                      ? "bg-red-600/30 text-red-300"
-                      : "bg-gray-600/40 text-gray-300"
-                }`}
-              >
-                {natsAccess === undefined
-                  ? "N/A"
-                  : natsAccess
-                    ? "ENABLED"
-                    : "DISABLED"}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-400">Rule</span>
-              <span className="text-sm font-medium break-all">
-                {natsRule ||
-                  (natsRuleId !== undefined && natsRuleId !== null
-                    ? `${natsRuleId}`
-                    : "N/A")}
-              </span>
-            </div>
-          </div>
-        );
-      },
-    },
+    ...importantContainerSpecFields(),
     {
       label: "Status",
       render: () => "",
@@ -873,18 +906,7 @@ function MicroservicesList() {
         );
       },
     },
-    {
-      label: "Error Messages",
-      render: (node: any) => {
-        return node.status.errorMessage ? (
-          <span className="text-white whitespace-pre-wrap break-words">
-            {node.status?.errorMessage}
-          </span>
-        ) : (
-          "N/A"
-        );
-      },
-    },
+    ...microserviceCrashSlideoverFields(selectedMs),
     {
       label: "Exec Session Ids",
       render: (row: any) => renderExecSessionIds(row.status.execSessionIds),
@@ -900,6 +922,7 @@ function MicroservicesList() {
         </span>
       ),
     },
+    ...podIdSlideoverFields(selectedMs),
     {
       label: "Exec Status",
       render: (row: any) => {
@@ -929,13 +952,16 @@ function MicroservicesList() {
       isSectionHeader: true,
     },
     {
-      label: "CPU Usage",
-      render: (row: any) =>
-        `${(Number(row?.status?.cpuUsage) || 0)?.toFixed(2)}%`,
+      label: "Container CPU",
+      render: (row: any) => formatCpuCores(row?.status?.cpuUsage),
     },
     {
-      label: "Memory Usage",
-      render: (row: any) => `${prettyBytes(row.status?.memoryUsage || 0)}`,
+      label: "Container memory",
+      render: (row: any) =>
+        formatMicroserviceMemory(
+          row.status?.memoryUsage,
+          row.memoryLimit,
+        ),
     },
     {
       label: "Ports",
@@ -1029,6 +1055,49 @@ function MicroservicesList() {
       },
     },
     {
+      label: "AI Model Catalog",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => (
+        <MicroserviceAiModelsEditor
+          uuid={row.uuid}
+          catalog={row.models}
+          models={fleetModels as any[]}
+          request={request}
+          pushFeedback={pushFeedback}
+          onSaved={handleRefreshMicroservice}
+        />
+      ),
+    },
+    {
+      label: "AI Knowledge Catalog",
+      render: () => "",
+      isSectionHeader: true,
+    },
+    {
+      label: "",
+      isFullSection: true,
+      render: (row: any) => (
+        <MicroserviceKnowledgeEditor
+          uuid={row.uuid}
+          catalog={row.knowledge}
+          knowledge={fleetKnowledge as any[]}
+          neighbors={{
+            models: row.models,
+            volumeMappings: row.volumeMappings,
+            tmpfs: row.tmpfs,
+          }}
+          request={request}
+          pushFeedback={pushFeedback}
+          onSaved={handleRefreshMicroservice}
+        />
+      ),
+    },
+    {
       label: "Volumes",
       render: () => "",
       isSectionHeader: true,
@@ -1047,13 +1116,7 @@ function MicroservicesList() {
           );
         }
 
-        const volumesData = volumes.map((volume: any, index: number) => ({
-          host: volume.hostDestination,
-          container: volume.containerDestination,
-          accessMode: volume.accessMode,
-          type: volume.type || "-",
-          key: `${volume.hostDestination}-${volume.containerDestination}-${index}`,
-        }));
+        const volumesData = volumes.map(toVolumeMappingRow);
 
         const volumeColumns = [
           {
@@ -1085,9 +1148,17 @@ function MicroservicesList() {
             ),
           },
           {
+            key: "scope",
+            header: "Scope",
+            formatter: ({ row }: any) => (
+              <span className="text-white">{row.scope}</span>
+            ),
+          },
+          {
             key: "action",
             header: "Action",
             render: (row: any) => {
+              if (!canDeleteVolumeMapping(row.type)) return null;
               return (
                 <button
                   onClick={() => setSelectedVolume(row)}
@@ -1338,9 +1409,7 @@ function MicroservicesList() {
         onCancel={() => setShowDeleteConfirmModal(false)}
         onConfirm={handleDelete}
         title={`Deleting Microservice ${selectedMs?.name}`}
-        message={
-          "This action will remove the microservice from the system. All data and configurations will be lost. This is not reversible."
-        }
+        message={MICROSERVICE_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />
@@ -1360,9 +1429,7 @@ function MicroservicesList() {
         onCancel={() => setShowVolumeDeleteConfirmModal(false)}
         onConfirm={handleVolumeDelete}
         title={`Deleting Volume ${selectedVolume?.host}`}
-        message={
-          "This action will remove the volume from the microservice. This is not reversible."
-        }
+        message={VOLUME_MAPPING_DELETE_MESSAGE}
         cancelLabel={"Cancel"}
         confirmLabel={"Delete"}
       />

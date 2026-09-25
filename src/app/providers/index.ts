@@ -18,6 +18,7 @@ export {
   type TerminalSession,
   type YamlEditorSession,
   type DeploySession,
+  type DeployFormKind,
   type GlobalTab,
 } from "./Terminal/TerminalProvider";
 

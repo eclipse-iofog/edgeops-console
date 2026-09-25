@@ -32,6 +32,13 @@ const AGENT_YAML_ONLY_KEYS = [
   joinKey("fog", "Type"),
 ];
 
+/** Removed agent keys — omit from dump and strip from uploaded YAML. */
+const AGENT_DROPPED_WIRE_KEYS = [
+  joinKey("device", "Scan", "Frequency"),
+  joinKey("bluetooth", "Enabled"),
+  joinKey("abstracted", "Hardware", "Enabled"),
+];
+
 /** v3.7 wire keys — greenfield; strip if present in uploaded YAML. */
 const AGENT_LEGACY_WIRE_KEYS = [
   joinKey("fog", "Type"),
@@ -41,7 +48,11 @@ const AGENT_LEGACY_WIRE_KEYS = [
 ];
 
 const sanitizeAgentWireBody = (body: Record<string, unknown>) => {
-  for (const key of [...AGENT_YAML_ONLY_KEYS, ...AGENT_LEGACY_WIRE_KEYS]) {
+  for (const key of [
+    ...AGENT_YAML_ONLY_KEYS,
+    ...AGENT_LEGACY_WIRE_KEYS,
+    ...AGENT_DROPPED_WIRE_KEYS,
+  ]) {
     delete body[key];
   }
   return body;
@@ -81,8 +92,8 @@ const toArchIdValue = (arch: string | number | undefined) => {
 export const buildAgentYamlObject = (agent: any) => {
   const config = {
     location: agent?.location,
-    ...(agent?.latitude != null && { latitude: agent.latitude }),
-    ...(agent?.longitude != null && { longitude: agent.longitude }),
+    ...(agent?.latitude != null && agent.latitude !== "" && { latitude: agent.latitude }),
+    ...(agent?.longitude != null && agent.longitude !== "" && { longitude: agent.longitude }),
     description: agent?.description,
     arch: toArchLabel(agent?.archId),
     networkInterface: agent?.networkInterface,
@@ -98,14 +109,11 @@ export const buildAgentYamlObject = (agent: any) => {
     logFileCount: agent?.logFileCount,
     statusFrequency: agent?.statusFrequency,
     changeFrequency: agent?.changeFrequency,
-    deviceScanFrequency: agent?.deviceScanFrequency,
-    bluetoothEnabled: agent?.bluetoothEnabled,
     watchdogEnabled: agent?.watchdogEnabled,
     gpsMode: agent?.gpsMode,
     gpsScanFrequency: agent?.gpsScanFrequency,
     gpsDevice: agent?.gpsDevice,
     edgeGuardFrequency: agent?.edgeGuardFrequency,
-    abstractedHardwareEnabled: agent?.abstractedHardwareEnabled,
     upstreamRouters: agent?.upstreamRouters ?? [],
     upstreamNatsServers: agent?.upstreamNatsServers ?? [],
     routerConfig: {

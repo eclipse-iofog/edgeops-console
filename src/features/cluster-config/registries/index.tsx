@@ -13,9 +13,13 @@ import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
 import { useLocation } from "react-router-dom";
 import yaml from "js-yaml";
 import { useTerminal } from "@/app/providers";
-import { parseRegistries } from "@/lib/yaml/parseRegistriesYaml";
+import {
+  dumpRegistryYAML,
+  parseRegistries,
+} from "@/lib/yaml/parseRegistriesYaml";
 import { useUnifiedYamlUpload } from "../../../hooks/useUnifiedYamlUpload";
-import { CANONICAL_DISPLAY_CONTROLLER_API_VERSION } from "@/lib/constants/constants";
+import { registryTypeLabel } from "@/lib/registryCa";
+import RegistryCaTextBox from "./RegistryCaTextBox";
 
 function Registries() {
   const {
@@ -102,28 +106,7 @@ function Registries() {
 
   const handleEditYaml = () => {
     const name = selectedRegistry?.url.replace(/\./g, "-") || "untitled";
-
-    const yamlObj = {
-      apiVersion: CANONICAL_DISPLAY_CONTROLLER_API_VERSION,
-      kind: "Registry",
-      metadata: {
-        name: name,
-      },
-      spec: {
-        id: selectedRegistry?.id,
-        url: selectedRegistry?.url,
-        private: !selectedRegistry?.isPublic,
-        username: selectedRegistry?.username,
-        email: selectedRegistry?.userEmail,
-        password: selectedRegistry?.password,
-      },
-    };
-
-    const yamlString = yaml.dump(yamlObj, {
-      noRefs: true,
-      indent: 2,
-      lineWidth: -1,
-    });
+    const yamlString = dumpRegistryYAML(selectedRegistry);
 
     addYamlSession({
       title: `Registry YAML: ${name}`,
@@ -233,6 +216,11 @@ function Registries() {
       ),
     },
     {
+      key: "type",
+      header: "Type",
+      render: (row: any) => <span>{registryTypeLabel(row.type)}</span>,
+    },
+    {
       key: "isPublic",
       header: "PRIVATE",
       render: (row: any) => <span>{row.isPublic ? "false" : "true"}</span>,
@@ -247,6 +235,10 @@ function Registries() {
     {
       label: "URL",
       render: (row: any) => row.url || "N/A",
+    },
+    {
+      label: "Type",
+      render: (row: any) => registryTypeLabel(row.type),
     },
     {
       label: "Username",
@@ -271,6 +263,24 @@ function Registries() {
     {
       label: "Private",
       render: (row: any) => <span>{row.isPublic ? "false" : "true"}</span>,
+    },
+    {
+      label: "Insecure",
+      render: (row: any) => (
+        <span>{row.insecure === true ? "true" : "false"}</span>
+      ),
+    },
+    {
+      label: "CA",
+      isFullSection: true,
+      render: (row: any) => (
+        <div className="py-3 flex flex-col">
+          <div className="text-sm font-medium text-gray-300 mb-1">CA</div>
+          <div className="text-sm text-white break-all bg-gray-800 rounded px-2 py-1">
+            {row?.ca ? <RegistryCaTextBox data={row.ca} /> : "N/A"}
+          </div>
+        </div>
+      ),
     },
   ];
 

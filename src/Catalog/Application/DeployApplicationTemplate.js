@@ -3,6 +3,7 @@ import { useController } from "@/app/providers";
 import { useFeedback } from "@/app/providers";
 import { useData } from "@/app/providers";
 import lget from "lodash/get";
+import { buildApplicationTemplateDeployBody } from "./applicationTemplateDeploy";
 
 // Compact form styles using Tailwind classes
 const formStyles = {
@@ -70,7 +71,11 @@ const mapVariables = (template) => {
     } else {
       acc[v.key].type = "text";
     }
-    if (acc[v.key].type !== "text" && acc[v.key].type !== "number") {
+    if (
+      acc[v.key].type !== "text" &&
+      acc[v.key].type !== "number" &&
+      acc[v.key].type !== "boolean"
+    ) {
       acc[v.key].readOnly = true;
     }
     return acc;
@@ -88,22 +93,13 @@ export default function DeployApplicationTemplate({
   const { request } = useController();
   const { data } = useData();
   const [loading, setLoading] = React.useState(false);
-
-  // Expose deploy function and validation state to parent
-  React.useEffect(() => {
-    if (onDeploy) {
-      onDeploy({
-        deployApplication,
-        isValid: !!applicationName,
-        loading,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicationName, loading, onDeploy]);
+  const isValid = Boolean(applicationName);
 
   const handleChange = (key, value) => {
     if (variables[key].type === "number") {
       value = +value;
+    } else if (variables[key].type === "boolean") {
+      value = value === "true" ? true : value === "false" ? false : "";
     }
     setVariables((v) => ({
       ...v,
@@ -114,7 +110,7 @@ export default function DeployApplicationTemplate({
     }));
   };
 
-  const deployApplication = async () => {
+  const deployApplication = React.useCallback(async () => {
     if (!applicationName) {
       pushFeedback({ message: "Application name is required", type: "error" });
       return;
@@ -130,19 +126,13 @@ export default function DeployApplicationTemplate({
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          name: applicationName,
-          isActivated: true,
-          template: {
-            name: template.name,
-            variables: Object.keys(variables).map((key) => {
-              return {
-                key,
-                value: variables[key].value,
-              };
-            }),
-          },
-        }),
+        body: JSON.stringify(
+          buildApplicationTemplateDeployBody({
+            applicationName,
+            templateName: template.name,
+            variables,
+          }),
+        ),
       });
       if (!res.ok) {
         try {
@@ -161,7 +151,26 @@ export default function DeployApplicationTemplate({
       setLoading(false);
       pushFeedback({ message: e.message, type: "error" });
     }
-  };
+  }, [
+    applicationName,
+    close,
+    data.applications,
+    pushFeedback,
+    request,
+    template.name,
+    variables,
+  ]);
+
+  React.useEffect(() => {
+    if (onDeploy) {
+      onDeploy({
+        deploy: deployApplication,
+        deployApplication,
+        isValid,
+        loading,
+      });
+    }
+  }, [deployApplication, isValid, loading, onDeploy]);
 
   return (
     <div className={formStyles.container}>
@@ -227,13 +236,35 @@ export default function DeployApplicationTemplate({
             <div className={formStyles.formRow} key={key}>
               <div className={formStyles.label}>{key}:</div>
               <div className={formStyles.inputContainer}>
-                <input
-                  className={formStyles.input}
-                  type={v.type}
-                  value={v.value}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  placeholder={v.placeholder}
-                />
+                {v.type === "boolean" ? (
+                  <select
+                    className={formStyles.select}
+                    value={
+                      v.value === true
+                        ? "true"
+                        : v.value === false
+                          ? "false"
+                          : ""
+                    }
+                    onChange={(e) => handleChange(key, e.target.value)}
+                  >
+                    <option value="">
+                      {v.defaultValue === true || v.defaultValue === false
+                        ? `Default: ${v.defaultValue}`
+                        : "Select"}
+                    </option>
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    className={formStyles.input}
+                    type={v.type}
+                    value={v.value}
+                    onChange={(e) => handleChange(key, e.target.value)}
+                    placeholder={v.placeholder}
+                  />
+                )}
               </div>
               <div className={formStyles.description}>{v.description}</div>
             </div>
