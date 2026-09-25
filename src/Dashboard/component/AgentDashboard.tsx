@@ -8,6 +8,7 @@ import {
   prettyBytes,
 } from "../../lib/formatting";
 import {
+  bubbleChartCpuAxisMax,
   cpuUsageUnitsToCores,
   formatCpuCoresWithLimit,
 } from "@/lib/formatting/resourceMetrics";
@@ -181,12 +182,16 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
   const maxMemory = Math.max(...memoryValues);
   const dynamicYMax = maxMemory > 0 ? Math.ceil(maxMemory * 1.2) : 1000;
 
-  const cpuValues = agentArray.map((agent) =>
+  const cpuUsageCores = agentArray.map((agent) =>
     cpuUsageUnitsToCores(agent.cpuUsage),
   );
-  const maxCpu = Math.max(...cpuValues, 0);
-  const dynamicXMax =
-    maxCpu > 0 ? Math.max(Number((maxCpu * 1.2).toFixed(2)), 0.5) : 1;
+  const cpuLimitCores = agentArray.map((agent) =>
+    cpuUsageUnitsToCores(agent.cpuLimit),
+  );
+  const dynamicXMax = bubbleChartCpuAxisMax({
+    usageCores: cpuUsageCores,
+    limitCores: cpuLimitCores,
+  });
 
   const bubbleChartOptions = {
     chart: {

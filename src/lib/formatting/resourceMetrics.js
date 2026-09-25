@@ -130,6 +130,24 @@ export function formatMicroserviceMemory(usageBytes, memoryLimitMiB) {
   return `${prettyBytes(used)} / ${prettyBytes(limitBytes)}`;
 }
 
+export function bubbleChartCpuAxisMax({ usageCores = [], limitCores = [] }) {
+  const usageMax = usageCores.reduce(
+    (max, value) =>
+      Number.isFinite(value) && value > max ? value : max,
+    0,
+  );
+  const limitMax = limitCores.reduce(
+    (max, value) =>
+      Number.isFinite(value) && value > 0 && value > max ? value : max,
+    0,
+  );
+  const base = Math.max(usageMax, limitMax);
+  if (base <= 0) {
+    return 1;
+  }
+  return Number((base * 1.1).toFixed(2));
+}
+
 export function formatMicroserviceCpuDisplay(cpuUsageUnits, cpus) {
   const usage = Number(cpuUsageUnits);
   if (!Number.isFinite(usage)) {

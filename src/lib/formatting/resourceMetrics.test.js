@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bubbleChartCpuAxisMax,
   cpuUsageUnitsToCores,
   formatCpuCores,
   formatDecimalGbPair,
@@ -12,6 +13,16 @@ import {
 import { MiBFactor } from "@/lib/formatting";
 
 describe("resourceMetrics", () => {
+  it("derives bubble chart cpu axis max from usage and limits", () => {
+    expect(
+      bubbleChartCpuAxisMax({ usageCores: [0.08], limitCores: [0.5] }),
+    ).toBe(0.55);
+    expect(
+      bubbleChartCpuAxisMax({ usageCores: [0.2], limitCores: [2] }),
+    ).toBe(2.2);
+    expect(bubbleChartCpuAxisMax({ usageCores: [], limitCores: [] })).toBe(1);
+  });
+
   it("formats cpu usage as cores", () => {
     expect(cpuUsageUnitsToCores(100)).toBe(1);
     expect(cpuUsageUnitsToCores(32)).toBe(0.32);
