@@ -177,6 +177,12 @@ describe("agent fog status fields", () => {
     expect(screen.getByText("6.8.0-45-generic")).toBeInTheDocument();
   });
 
+  it("formats Created from controller createdAt", () => {
+    renderLabeled("Created", { createdAt: "2026-07-01T10:47:14.000Z" });
+    expect(screen.queryByText("N/A")).not.toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toBeInTheDocument();
+  });
+
   it("places Knowledge status after model last update and before Status", () => {
     const labels = buildAgentSlideOverFields({}).map((field) => field.label);
     const modelUpdate = labels.indexOf("Model last update");
