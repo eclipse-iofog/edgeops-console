@@ -310,7 +310,7 @@ export const buildAgentSlideOverFields = (
     {
       label: "Created",
       render: (node: any) => {
-        const created = node.created || node.creationTimestamp;
+        const created = node.createdAt ?? node.created ?? node.creationTimestamp;
         if (!created) return "N/A";
         const date = new Date(created);
         const formattedDate = format(date, "PPpp");
