@@ -130,22 +130,57 @@ export function formatMicroserviceMemory(usageBytes, memoryLimitMiB) {
   return `${prettyBytes(used)} / ${prettyBytes(limitBytes)}`;
 }
 
-export function bubbleChartCpuAxisMax({ usageCores = [], limitCores = [] }) {
-  const usageMax = usageCores.reduce(
+/** Controller CPU usage units: 100 units = 1 core = 1000 millicores. */
+export function cpuUnitsToMillicores(units) {
+  const n = Number(units);
+  if (!Number.isFinite(n)) {
+    return 0;
+  }
+  return n * 10;
+}
+
+export function coresToMillicores(cores) {
+  const n = Number(cores);
+  if (!Number.isFinite(n)) {
+    return 0;
+  }
+  return n * 1000;
+}
+
+const MILLICORE_AXIS_STEPS = [
+  10, 20, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000,
+  2500, 3000, 4000, 5000, 7500, 10000, 15000, 20000, 30000, 50000,
+];
+
+export function niceMillicoreAxisMax(maxMillicores, paddingFactor = 1.15) {
+  const padded = maxMillicores * paddingFactor;
+  if (padded <= 0) {
+    return 100;
+  }
+  for (const step of MILLICORE_AXIS_STEPS) {
+    if (step >= padded) {
+      return step;
+    }
+  }
+  return Math.ceil(padded / 1000) * 1000;
+}
+
+/** Bubble chart X max from observed CPU usage (millicores), not limits. */
+export function bubbleChartCpuAxisMaxMillicores({ usageMillicores = [] } = {}) {
+  const usageMax = usageMillicores.reduce(
     (max, value) =>
       Number.isFinite(value) && value > max ? value : max,
     0,
   );
-  const limitMax = limitCores.reduce(
-    (max, value) =>
-      Number.isFinite(value) && value > 0 && value > max ? value : max,
-    0,
-  );
-  const base = Math.max(usageMax, limitMax);
-  if (base <= 0) {
-    return 1;
+  return niceMillicoreAxisMax(usageMax);
+}
+
+export function formatMillicoreAxisLabel(millicores) {
+  const n = Math.round(Number(millicores));
+  if (!Number.isFinite(n)) {
+    return "—";
   }
-  return Number((base * 1.1).toFixed(2));
+  return `${n}m`;
 }
 
 export function formatMicroserviceCpuDisplay(cpuUsageUnits, cpus) {

@@ -8,10 +8,14 @@ import {
   prettyBytes,
 } from "../../lib/formatting";
 import {
-  bubbleChartCpuAxisMax,
-  cpuUsageUnitsToCores,
+  bubbleChartCpuAxisMaxMillicores,
+  cpuUnitsToMillicores,
   formatCpuCoresWithLimit,
+  formatMillicoreAxisLabel,
 } from "@/lib/formatting/resourceMetrics";
+
+const RESOURCE_CHART_CPU_NOTE =
+  "CPU axis in millicores (1000m = 1 core)";
 
 interface AgentData {
   uuid: string;
@@ -163,7 +167,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
     name: status,
     color: StatusColor[status as keyof typeof StatusColor] || "#FFFFFF",
     data: statusGroups[status].map((agent) => ({
-      x: cpuUsageUnitsToCores(agent.cpuUsage),
+      x: cpuUnitsToMillicores(agent.cpuUsage),
       cpuUsageUnits: agent.cpuUsage,
       cpuLimitUnits: agent.cpuLimit,
       y: agent.memoryUsage
@@ -182,15 +186,11 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
   const maxMemory = Math.max(...memoryValues);
   const dynamicYMax = maxMemory > 0 ? Math.ceil(maxMemory * 1.2) : 1000;
 
-  const cpuUsageCores = agentArray.map((agent) =>
-    cpuUsageUnitsToCores(agent.cpuUsage),
+  const cpuUsageMillicores = agentArray.map((agent) =>
+    cpuUnitsToMillicores(agent.cpuUsage),
   );
-  const cpuLimitCores = agentArray.map((agent) =>
-    cpuUsageUnitsToCores(agent.cpuLimit),
-  );
-  const dynamicXMax = bubbleChartCpuAxisMax({
-    usageCores: cpuUsageCores,
-    limitCores: cpuLimitCores,
+  const dynamicXMax = bubbleChartCpuAxisMaxMillicores({
+    usageMillicores: cpuUsageMillicores,
   });
 
   const bubbleChartOptions = {
@@ -272,8 +272,9 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
       min: 0,
       max: dynamicXMax,
       tickAmount: 5,
+      decimalsInFloat: 0,
       title: {
-        text: "CPU Usage (cores)",
+        text: "CPU usage (millicores)",
         style: {
           color: "#e5e7eb",
           fontSize: "14px",
@@ -287,7 +288,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
           fontSize: "12px",
           fontWeight: "500",
         },
-        formatter: (val: string) => Number(val).toFixed(2),
+        formatter: (val: string) => formatMillicoreAxisLabel(val),
       },
       axisBorder: {
         show: true,
@@ -429,8 +430,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ agentData }) => {
             <h2 className="text-white text-base sm:text-lg xl:text-xl 2xl:text-2xl font-semibold">
               Resource Utilization
             </h2>
-            <div className="text-xs sm:text-sm text-gray-400">
-              CPU vs Memory
+            <div className="text-xs sm:text-sm text-gray-400 text-right max-w-xs">
+              CPU vs Memory · {RESOURCE_CHART_CPU_NOTE}
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  bubbleChartCpuAxisMax,
+  bubbleChartCpuAxisMaxMillicores,
+  cpuUnitsToMillicores,
   cpuUsageUnitsToCores,
   formatCpuCores,
+  formatMillicoreAxisLabel,
+  niceMillicoreAxisMax,
   formatDecimalGbPair,
   formatEdgeletMemory,
   formatHostBytesUsedTotal,
@@ -13,14 +16,24 @@ import {
 import { MiBFactor } from "@/lib/formatting";
 
 describe("resourceMetrics", () => {
-  it("derives bubble chart cpu axis max from usage and limits", () => {
+  it("converts controller cpu units to millicores", () => {
+    expect(cpuUnitsToMillicores(100)).toBe(1000);
+    expect(cpuUnitsToMillicores(8)).toBe(80);
+    expect(cpuUnitsToMillicores(undefined)).toBe(0);
+  });
+
+  it("derives nice millicore axis max from usage only", () => {
+    expect(niceMillicoreAxisMax(80)).toBe(100);
+    expect(niceMillicoreAxisMax(400)).toBe(500);
+    expect(niceMillicoreAxisMax(0)).toBe(100);
     expect(
-      bubbleChartCpuAxisMax({ usageCores: [0.08], limitCores: [0.5] }),
-    ).toBe(0.55);
-    expect(
-      bubbleChartCpuAxisMax({ usageCores: [0.2], limitCores: [2] }),
-    ).toBe(2.2);
-    expect(bubbleChartCpuAxisMax({ usageCores: [], limitCores: [] })).toBe(1);
+      bubbleChartCpuAxisMaxMillicores({ usageMillicores: [80, 120, 500] }),
+    ).toBe(750);
+    expect(bubbleChartCpuAxisMaxMillicores({ usageMillicores: [] })).toBe(100);
+  });
+
+  it("formats millicore axis labels", () => {
+    expect(formatMillicoreAxisLabel(250.4)).toBe("250m");
   });
 
   it("formats cpu usage as cores", () => {

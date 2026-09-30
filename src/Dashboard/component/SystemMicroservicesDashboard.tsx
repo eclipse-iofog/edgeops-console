@@ -3,10 +3,14 @@ import { ServerCog } from "lucide-react";
 import ResponsiveApexChart from "@/components/ui/ResponsiveApexChart";
 import { StatusColor, StatusType } from "@/lib/constants/Enums/StatusColor";
 import {
-  bubbleChartCpuAxisMax,
-  cpuUsageUnitsToCores,
+  bubbleChartCpuAxisMaxMillicores,
+  cpuUnitsToMillicores,
   formatMicroserviceCpuDisplay,
+  formatMillicoreAxisLabel,
 } from "@/lib/formatting/resourceMetrics";
+
+const RESOURCE_CHART_CPU_NOTE =
+  "CPU axis in millicores (1000m = 1 core)";
 
 interface SystemMicroservicesDashboardProps {
   systemApplications: any[];
@@ -177,7 +181,7 @@ const SystemMicroservicesDashboard: React.FC<
         (msvc) => (msvc.status?.status?.toUpperCase() || "UNKNOWN") === status,
       )
       .map((msvc) => ({
-        x: cpuUsageUnitsToCores(msvc.status?.cpuUsage),
+        x: cpuUnitsToMillicores(msvc.status?.cpuUsage),
         cpuUsageUnits: msvc.status?.cpuUsage,
         cpus: msvc.cpus,
         y: msvc.status?.memoryUsage
@@ -196,13 +200,11 @@ const SystemMicroservicesDashboard: React.FC<
   const maxMemory = Math.max(...memoryValues, 100);
   const dynamicYMax = maxMemory > 0 ? Math.ceil(maxMemory * 1.2) : 100;
 
-  const cpuUsageCores = allMicroservices.map((msvc) =>
-    cpuUsageUnitsToCores(msvc.status?.cpuUsage),
+  const cpuUsageMillicores = allMicroservices.map((msvc) =>
+    cpuUnitsToMillicores(msvc.status?.cpuUsage),
   );
-  const cpuLimitCores = allMicroservices.map((msvc) => Number(msvc.cpus));
-  const dynamicXMax = bubbleChartCpuAxisMax({
-    usageCores: cpuUsageCores,
-    limitCores: cpuLimitCores,
+  const dynamicXMax = bubbleChartCpuAxisMaxMillicores({
+    usageMillicores: cpuUsageMillicores,
   });
 
   const bubbleChartOptions = {
@@ -272,8 +274,9 @@ const SystemMicroservicesDashboard: React.FC<
       min: 0,
       max: dynamicXMax,
       tickAmount: 5,
+      decimalsInFloat: 0,
       title: {
-        text: "CPU Usage (cores)",
+        text: "CPU usage (millicores)",
         style: {
           color: "#e5e7eb",
           fontSize: "14px",
@@ -287,7 +290,7 @@ const SystemMicroservicesDashboard: React.FC<
           fontSize: "12px",
           fontWeight: "500",
         },
-        formatter: (val: string) => Number(val).toFixed(2),
+        formatter: (val: string) => formatMillicoreAxisLabel(val),
       },
       axisBorder: {
         show: true,
@@ -442,8 +445,8 @@ const SystemMicroservicesDashboard: React.FC<
             <h2 className="text-white text-base sm:text-lg xl:text-xl 2xl:text-2xl font-semibold">
               Resource Utilization
             </h2>
-            <div className="text-xs sm:text-sm text-gray-400">
-              CPU vs Memory
+            <div className="text-xs sm:text-sm text-gray-400 text-right max-w-xs">
+              CPU vs Memory · {RESOURCE_CHART_CPU_NOTE}
             </div>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-3 sm:p-4 border border-gray-700/50">
