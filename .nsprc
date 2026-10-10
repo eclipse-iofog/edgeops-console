@@ -1,2 +1,12 @@
 {
+  "1240992": {
+    "active": true,
+    "notes": "braces <=3.0.3; dev-only (eslint/micromatch); no patched release on npm",
+    "expiry": "2026-11-30"
+  },
+  "1241202": {
+    "active": true,
+    "notes": "sprintf-js <=1.1.3 via swagger-ui-react/remarkable/argparse; no patched release on npm",
+    "expiry": "2026-11-30"
+  }
 }
