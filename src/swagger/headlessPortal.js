@@ -10,7 +10,6 @@ function stripScalarApp(root) {
 /**
  * Scalar tags the shared Headless UI portal with scalar-app, and its
  * unlayered `.scalar-app .flex` rule then overrides console slideover grids.
- * Keep that class off the portal for as long as the API page is mounted.
  */
 export function watchHeadlessPortal(doc) {
   let portalObserver = null;
@@ -45,4 +44,23 @@ export function watchHeadlessPortal(doc) {
     portalObserver?.disconnect();
     stripScalarApp(doc.getElementById(HEADLESS_PORTAL_ID));
   };
+}
+
+let releaseSessionWatch = null;
+
+/**
+ * Scalar's own portal observer stays after the API tab closes and tags the
+ * next dialog root. This watch stays up for the rest of the session too.
+ */
+export function retainHeadlessPortalWatch(doc) {
+  if (releaseSessionWatch) {
+    stripScalarApp(doc.getElementById(HEADLESS_PORTAL_ID));
+    return;
+  }
+  releaseSessionWatch = watchHeadlessPortal(doc);
+}
+
+export function resetHeadlessPortalWatchForTests() {
+  releaseSessionWatch?.();
+  releaseSessionWatch = null;
 }

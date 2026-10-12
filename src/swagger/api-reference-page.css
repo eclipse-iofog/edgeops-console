@@ -80,6 +80,10 @@
   overflow: auto;
 }
 
+.api-reference-page a[href*="utm_source=powered-by"] {
+  display: none;
+}
+
 /*
  * Scalar marks the shared Headless UI portal with .scalar-app and then
  * styles .flex as an unlayered rule. That beats the console's sm:grid,

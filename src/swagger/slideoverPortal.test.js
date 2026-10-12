@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { watchHeadlessPortal } from "./headlessPortal";
+import {
+  resetHeadlessPortalWatchForTests,
+  retainHeadlessPortalWatch,
+  watchHeadlessPortal,
+} from "./headlessPortal";
 
 describe("slideover rows inside the Scalar portal", () => {
   it("overrides Scalar's unlayered flex rule with a two-column grid", () => {
@@ -48,5 +52,28 @@ describe("watchHeadlessPortal", () => {
 
     expect(portal.classList.contains("scalar-app")).toBe(false);
     stop();
+  });
+});
+
+describe("retainHeadlessPortalWatch", () => {
+  afterEach(() => {
+    resetHeadlessPortalWatchForTests();
+    document.getElementById("headlessui-portal-root")?.remove();
+  });
+
+  it("keeps stripping scalar-app after the API tab would have closed", async () => {
+    retainHeadlessPortalWatch(document);
+    retainHeadlessPortalWatch(document);
+
+    const portal = document.createElement("div");
+    portal.id = "headlessui-portal-root";
+    document.body.appendChild(portal);
+    portal.classList.add("scalar-app");
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(portal.classList.contains("scalar-app")).toBe(false);
   });
 });

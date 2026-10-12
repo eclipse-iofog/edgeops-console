@@ -4,7 +4,7 @@ import "@scalar/api-reference-react/style.css";
 import { useLocation } from "react-router-dom";
 import YAML from "js-yaml";
 
-import { watchHeadlessPortal } from "./headlessPortal";
+import { retainHeadlessPortalWatch } from "./headlessPortal";
 import {
   sectionSlugFromDocsHref,
   shouldIgnoreHistoryUpdate,
@@ -90,7 +90,9 @@ const SwaggerDoc = () => {
   const [loadError, setLoadError] = useState(false);
   const { authToken, baseUrl } = readApiQuery(location.search);
 
-  useLayoutEffect(() => watchHeadlessPortal(window.document), []);
+  useLayoutEffect(() => {
+    retainHeadlessPortalWatch(window.document);
+  }, []);
 
   useLayoutEffect(() => {
     const lockedHref = lockedHrefRef.current;
