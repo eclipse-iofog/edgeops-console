@@ -23,7 +23,14 @@ export default mergeConfig(
         "xterm-addon-web-links": path.resolve(rootDir, "src/__mocks__/empty.js"),
         xterm: path.resolve(rootDir, "src/__mocks__/xterm.js"),
         "xterm-addon-fit": path.resolve(rootDir, "src/__mocks__/xterm-addon-fit.js"),
-        "swagger-ui-react": path.resolve(rootDir, "src/__mocks__/swagger-ui-react.js"),
+        "@scalar/api-reference-react/style.css": path.resolve(
+          rootDir,
+          "src/__mocks__/empty.js",
+        ),
+        "@scalar/api-reference-react": path.resolve(
+          rootDir,
+          "src/__mocks__/scalar-api-reference-react.js",
+        ),
         "react-router-dom": path.resolve(
           rootDir,
           "node_modules/react-router-dom/dist/index.js",

@@ -119,7 +119,7 @@ Put PNG files in this folder. Each caption in the guide names the file. Suggeste
 - `events-slideover.png` - event detail panel
 - `events-delete.png` - Delete Events dialog
 - `console-polling.png` - Polling Settings
-- `api-swagger.png` - API tab with Swagger UI
+- `api-swagger.png` - API tab with the API reference
 - `yaml-dropzone.png` - dropzone idle and while dragging a file
 <!-- - `yaml-toasts.png` - success and failure toasts after an upload
 - `yaml-editor.png` - YAML editor tab and Save

@@ -113,12 +113,12 @@ Mesh Graph does not follow the main interval. Use **Refresh** on that page. The 
 
 ## API
 
-![Swagger](./images/api-swagger.png)
+![API reference](./images/api-swagger.png)
 
 **Sidebar footer:** API (visible when the sidebar is expanded)  
 **Address:** `/#/api`
 
-**API** opens a pinned workbench tab. The tab loads Swagger UI for the Controller API. The console passes the current sign-in token and the API base address into that view, so **Authorize** is already set to the bearer token you are using.
+**API** opens a pinned workbench tab. The tab loads an API reference for the Controller API. The console passes the current sign-in token and the API base address into that view, so requests are already authenticated with the bearer token you are using.
 
 While the spec loads, the page says **Loading...**. The explorer scrolls inside the tab.
 
