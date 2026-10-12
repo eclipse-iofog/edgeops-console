@@ -448,7 +448,7 @@ const SlideOver = <T,>({
                           ) : (
                             <div
                               key={idx}
-                              className="py-3 sm:grid sm:grid-cols-[minmax(120px,150px)_1fr] sm:gap-2 flex flex-col"
+                              className="console-slideover-row py-3 sm:grid sm:grid-cols-[minmax(120px,150px)_1fr] sm:gap-2 flex flex-col"
                             >
                               <dt className="text-sm font-medium text-gray-300 content-center">
                                 {field.label}
