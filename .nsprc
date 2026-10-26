@@ -1,12 +1,3 @@
 {
-  "1240992": {
-    "active": true,
-    "notes": "braces <=3.0.3; dev-only (eslint/micromatch); no patched release on npm",
-    "expiry": "2026-11-30"
-  },
-  "1193659": {
-    "active": true,
-    "notes": "@ai-sdk/provider-utils via Scalar agent-chat; agent is disabled in the API page; low severity",
-    "expiry": "2026-11-30"
-  }
+
 }

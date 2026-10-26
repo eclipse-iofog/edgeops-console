@@ -539,4 +539,116 @@ spec:
       ...MICROSERVICE_CONTAINER_YAML_KEYS,
     ]);
   });
+
+  it("dumps supplemental group ids and keeps an empty list", async () => {
+    const dumped = dumpMicroserviceYAML({
+      microservice: {
+        name: "ms-a",
+        application: "app-a",
+        runAsGroup: "render",
+        supplementalGroups: [993, 44],
+      },
+    });
+    expect(dumped).toContain(
+      "supplementalGroups:  # host group id from that node, for example getent group render",
+    );
+    expect(dumped).toContain("runAsGroup: render");
+    expect(dumped.indexOf("- 993")).toBeLessThan(dumped.indexOf("- 44"));
+
+    const empty = dumpMicroserviceYAML({
+      microservice: { name: "ms-a", application: "app-a" },
+    });
+    expect(empty).toContain(
+      "supplementalGroups: []  # host group id from that node, for example getent group render",
+    );
+    const parsedEmpty = await parseUnifiedYaml(empty);
+    expect(parsedEmpty.errors).toEqual([]);
+    expect(parsedEmpty.resources[0].parsed.supplementalGroups).toEqual([]);
+  });
+
+  it("sends supplemental group ids only when the YAML key is present", async () => {
+    const omitted = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: test-app/inference
+spec:
+  application: test-app
+  agent:
+    name: lima
+  images:
+    amd64: my-alpine:test
+    registry: 4
+  container:
+    runAsGroup: "1000"
+    env: []
+`);
+    expect(omitted.errors).toEqual([]);
+    expect(omitted.resources[0].parsed).not.toHaveProperty("supplementalGroups");
+    expect(omitted.resources[0].parsed.runAsGroup).toBe("1000");
+
+    const cleared = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: test-app/inference
+spec:
+  application: test-app
+  agent:
+    name: lima
+  images:
+    amd64: my-alpine:test
+    registry: 4
+  container:
+    runAsGroup: render
+    supplementalGroups: []
+`);
+    expect(cleared.errors).toEqual([]);
+    expect(cleared.resources[0].parsed.supplementalGroups).toEqual([]);
+    expect(cleared.resources[0].parsed.runAsGroup).toBe("render");
+
+    const withGroups = await parseUnifiedYaml(`
+apiVersion: iofog.org/v3
+kind: Microservice
+metadata:
+  name: test-app/inference
+spec:
+  application: test-app
+  agent:
+    name: lima
+  images:
+    amd64: my-alpine:test
+    registry: 4
+  container:
+    runAsGroup: "1000"
+    supplementalGroups:
+      - 993
+      - 44
+      - "44"
+`);
+    expect(withGroups.errors).toEqual([]);
+    expect(withGroups.resources[0].parsed.supplementalGroups).toEqual([
+      993,
+      44,
+      "44",
+    ]);
+    expect(withGroups.resources[0].parsed.runAsGroup).toBe("1000");
+
+    const roundTrip = await parseUnifiedYaml(
+      dumpMicroserviceYAML({
+        microservice: {
+          name: "inference",
+          application: "test-app",
+          runAsGroup: "1000",
+          supplementalGroups: [993, 44],
+        },
+      }),
+    );
+    expect(roundTrip.errors).toEqual([]);
+    expect(roundTrip.resources[0].parsed.supplementalGroups).toEqual([
+      993,
+      44,
+    ]);
+    expect(roundTrip.resources[0].parsed.runAsGroup).toBe("1000");
+  });
 });

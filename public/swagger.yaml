@@ -3473,7 +3473,10 @@ paths:
     delete:
       tags:
         - Auth Users
-      summary: Soft-delete embedded auth user
+      summary: Delete embedded auth user
+      description: >
+        Removes the user and frees the email for a new account. The bootstrap admin
+        and the signed-in account cannot be deleted.
       operationId: deleteAuthUser
       security:
         - authToken: []
@@ -8238,7 +8241,13 @@ components:
   schemas:
     WsExecMessageTypes:
       type: object
-      description: MessagePack frame types for exec sessions
+      description: |
+        MessagePack frame types for exec sessions.
+        CONTROL (3) `data` is UTF-8. A resize frame is JSON
+        `{"type":"resize","cols":<uint>,"rows":<uint>}` with `cols` in 2..1000 and
+        `rows` in 1..1000. The agent applies that size to the PTY. The literal
+        `keepalive` is a console heartbeat answered by the controller. The literal
+        `close` asks the agent to end the session.
       properties:
         types:
           type: array
@@ -9408,6 +9417,18 @@ components:
           type: string
         runAsGroup:
           type: string
+        supplementalGroups:
+          type: array
+          maxItems: 16
+          uniqueItems: true
+          description: >-
+            Host group IDs for this microservice, separate from runAsGroup.
+            Always an array. Empty is [] when there are none. At most 16 unique
+            whole numbers from 0 through 4294967295, sorted ascending.
+          items:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
         readOnlyRootFilesystem:
           type: boolean
         platform:
@@ -9668,6 +9689,19 @@ components:
           type: string
         runAsGroup:
           type: string
+        supplementalGroups:
+          type: array
+          nullable: true
+          maxItems: 16
+          uniqueItems: true
+          description: >-
+            Extra host group IDs, separate from runAsGroup. Omit, null, or []
+            means no extra groups. At most 16 unique whole numbers from 0
+            through 4294967295. Stored sorted ascending.
+          items:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
         readOnlyRootFilesystem:
           type: boolean
         platform:
@@ -9804,6 +9838,19 @@ components:
           type: string
         runAsGroup:
           type: string
+        supplementalGroups:
+          type: array
+          nullable: true
+          maxItems: 16
+          uniqueItems: true
+          description: >-
+            Extra host group IDs, separate from runAsGroup. Omit leaves the
+            stored list. null or [] clears it. At most 16 unique whole numbers
+            from 0 through 4294967295. Stored sorted ascending.
+          items:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
         readOnlyRootFilesystem:
           type: boolean
         platform:

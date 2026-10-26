@@ -19,10 +19,19 @@ export default mergeConfig(
     resolve: {
       alias: {
         "@": path.resolve(rootDir, "src"),
-        "xterm/css/xterm.css": path.resolve(rootDir, "src/__mocks__/empty.js"),
-        "xterm-addon-web-links": path.resolve(rootDir, "src/__mocks__/empty.js"),
-        xterm: path.resolve(rootDir, "src/__mocks__/xterm.js"),
-        "xterm-addon-fit": path.resolve(rootDir, "src/__mocks__/xterm-addon-fit.js"),
+        "@xterm/xterm/css/xterm.css": path.resolve(rootDir, "src/__mocks__/empty.js"),
+        "@xterm/xterm": path.resolve(rootDir, "src/__mocks__/xterm.js"),
+        "@xterm/addon-fit": path.resolve(rootDir, "src/__mocks__/xterm-addon-fit.js"),
+        "@xterm/addon-search": path.resolve(rootDir, "src/__mocks__/xterm-addon-search.js"),
+        "@xterm/addon-unicode11": path.resolve(
+          rootDir,
+          "src/__mocks__/xterm-addon-unicode11.js",
+        ),
+        "@xterm/addon-web-links": path.resolve(
+          rootDir,
+          "src/__mocks__/xterm-addon-web-links.js",
+        ),
+        "@xterm/addon-webgl": path.resolve(rootDir, "src/__mocks__/xterm-addon-webgl.js"),
         "@scalar/api-reference-react/style.css": path.resolve(
           rootDir,
           "src/__mocks__/empty.js",

@@ -33,6 +33,7 @@ export const MICROSERVICE_CONTAINER_YAML_KEYS = [
   "isPrivileged",
   "runAsUser",
   "runAsGroup",
+  "supplementalGroups",
   "readOnlyRootFilesystem",
   "ipcMode",
   "pidMode",
@@ -68,6 +69,8 @@ const CONTAINER_NUMBER_COMMENTS: Record<string, string> = {
   memoryReservation: "MiB",
   memorySwap: "MiB; -1 = unlimited",
   shmSize: "MiB",
+  supplementalGroups:
+    "array of integer host group ids from that node [44, 1001], for example 'getent group render'",
 };
 
 const YAML_DUMP_OPTIONS: yaml.DumpOptions = {
@@ -291,6 +294,7 @@ export const buildMicroserviceContainerYaml = (
     isPrivileged: dumpBoolean(ms?.isPrivileged),
     runAsUser: dumpString(ms?.runAsUser),
     runAsGroup: dumpString(ms?.runAsGroup),
+    supplementalGroups: asArray(ms?.supplementalGroups),
     readOnlyRootFilesystem: dumpBoolean(ms?.readOnlyRootFilesystem),
     ipcMode: dumpString(ms?.ipcMode),
     pidMode: dumpString(ms?.pidMode),

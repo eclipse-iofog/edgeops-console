@@ -37,7 +37,7 @@ import {
   useAuth,
 } from "./auth";
 import "immutable";
-import "xterm/css/xterm.css";
+import "@xterm/xterm/css/xterm.css";
 
 function LoginShell() {
   useEffect(() => {

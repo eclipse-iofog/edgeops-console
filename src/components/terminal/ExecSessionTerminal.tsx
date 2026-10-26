@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Terminal } from "xterm";
-import { FitAddon } from "xterm-addon-fit";
-import "xterm/css/xterm.css";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
+import "@xterm/xterm/css/xterm.css";
 import * as msgpack from "@msgpack/msgpack";
 import { useDebuggerStatus } from "@/hooks/useDebuggerStatus";
 import { getWsBaseUrl } from "@/auth/api";
@@ -10,6 +14,15 @@ import {
   formatWebSocketErrorString,
   isNormalExecSessionClose,
 } from "@/lib/wsSessionErrors";
+import {
+  isPublishableTerminalSize,
+  isSafeTerminalLink,
+  isTerminalViewportMeasurable,
+  resizeControlPayload,
+  takeExecStatusNotice,
+  TERMINAL_FONT_FAMILY,
+  type TerminalSize,
+} from "./terminalSession";
 
 type ExecSessionTerminalProps = {
   socketUrl: string;
@@ -21,6 +34,7 @@ type ExecSessionTerminalProps = {
   nodeUuid?: string;
   agentName?: string;
   waitingForDebugger?: boolean;
+  active?: boolean;
 };
 
 type Message = {
@@ -39,17 +53,6 @@ const MessageTypeControl = 3;
 const MessageTypeClose = 4;
 const MessageTypeActivation = 5;
 
-function isShellExitInput(data: string, lineBuffer: string): boolean {
-  if (data.includes("\x04")) {
-    return true;
-  }
-  if (!data.includes("\r") && !data.includes("\n")) {
-    return false;
-  }
-  const line = lineBuffer.replace(/\r/g, "").replace(/\n/g, "").trim();
-  return line === "exit" || line === "logout";
-}
-
 const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   socketUrl,
   authToken,
@@ -60,11 +63,14 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   nodeUuid,
   agentName,
   waitingForDebugger = false,
+  active = true,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
   const sessionRef = useRef<{ microserviceUuid: string; execId: string }>({
     microserviceUuid,
     execId,
@@ -74,11 +80,111 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   const isInitializedRef = useRef<boolean>(false);
   const sessionEndedRef = useRef<boolean>(false);
   const userInitiatedCloseRef = useRef<boolean>(false);
+  const closeNoticeRef = useRef<string | null>(null);
   const inputListenerRef = useRef<{ dispose: () => void } | null>(null);
+  const lastPublishedSizeRef = useRef<TerminalSize | null>(null);
+  const activeRef = useRef(active);
+  const requestFitRef = useRef<() => void>(() => {});
+  const onFindRef = useRef<() => void>(() => {});
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const [statusMessageShown, setStatusMessageShown] = useState(false);
-  const [readyMessageShown, setReadyMessageShown] = useState(false);
+  activeRef.current = active;
+  const [banner, setBanner] = useState<string | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findMiss, setFindMiss] = useState(false);
+
+  requestFitRef.current = () => {
+    const el = containerRef.current;
+    const fit = fitRef.current;
+    const term = termRef.current;
+    const ws = wsRef.current;
+    // Hidden tabs stay at the last published size so their PTY and grid match.
+    if (!activeRef.current || sessionEndedRef.current) {
+      return;
+    }
+    if (!el || !fit || !term) {
+      return;
+    }
+    if (!isTerminalViewportMeasurable(el.clientWidth, el.clientHeight)) {
+      return;
+    }
+    try {
+      fit.fit();
+    } catch {
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const sessionExecId = sessionRef.current.execId;
+    if (!sessionExecId) {
+      return;
+    }
+    const cols = term.cols;
+    const rows = term.rows;
+    if (!isPublishableTerminalSize(cols, rows, lastPublishedSizeRef.current)) {
+      return;
+    }
+    const resizeMsg: Message = {
+      type: MessageTypeControl,
+      data: new TextEncoder().encode(resizeControlPayload(cols, rows)),
+      microserviceUuid: sessionRef.current.microserviceUuid,
+      execId: sessionExecId,
+      timestamp: Date.now(),
+    };
+    try {
+      ws.send(msgpack.encode(resizeMsg));
+      lastPublishedSizeRef.current = { cols, rows };
+    } catch (error) {
+      console.warn("Failed to send terminal resize:", error);
+    }
+  };
+
+  onFindRef.current = () => {
+    const selected = termRef.current
+      ?.getSelection()
+      .split(/\r?\n/)[0]
+      ?.trim();
+    if (selected) {
+      setFindQuery(selected);
+    }
+    setFindOpen(true);
+    requestAnimationFrame(() => findInputRef.current?.focus());
+  };
+
+  const closeFind = () => {
+    searchRef.current?.clearDecorations();
+    setFindOpen(false);
+    setFindMiss(false);
+    if (!sessionEndedRef.current) {
+      termRef.current?.focus();
+    }
+  };
+
+  const runFind = (direction: "next" | "previous") => {
+    const addon = searchRef.current;
+    if (!addon || !findQuery) {
+      setFindMiss(false);
+      return;
+    }
+    const found =
+      direction === "next"
+        ? addon.findNext(findQuery)
+        : addon.findPrevious(findQuery);
+    setFindMiss(!found);
+  };
+
+  useEffect(() => {
+    if (!findOpen || !findQuery) {
+      return;
+    }
+    const addon = searchRef.current;
+    if (!addon) {
+      return;
+    }
+    setFindMiss(!addon.findNext(findQuery, { incremental: true }));
+  }, [findOpen, findQuery]);
 
   // Use debugger status hook when waiting for debugger
   const { debugUuid, status: debuggerStatus } = useDebuggerStatus(
@@ -87,22 +193,25 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     agentName,
   );
 
-  // Show ready message when debugger is available (WebSocket connects separately)
+  // Debug progress stays above the grid. The shell must start at column 0.
   useEffect(() => {
-    if (
-      waitingForDebugger &&
-      debugUuid &&
-      debuggerStatus === "running" &&
-      termRef.current &&
-      !readyMessageShown
-    ) {
-      termRef.current.clear();
-      termRef.current.writeln(
-        "\x1b[32m✓ Debug container is running, connecting to terminal...\x1b[0m",
-      );
-      setReadyMessageShown(true);
+    if (!waitingForDebugger) {
+      return;
     }
-  }, [waitingForDebugger, debugUuid, debuggerStatus, readyMessageShown]);
+    if (debuggerStatus === "error") {
+      setBanner("Timeout waiting for debug container to start");
+      return;
+    }
+    if (debuggerStatus === "running" && debugUuid) {
+      setBanner("Debug container is running, connecting to terminal…");
+      return;
+    }
+    if (debuggerStatus === "starting") {
+      setBanner("Debug container is starting…");
+      return;
+    }
+    setBanner("Waiting for debug container to start…");
+  }, [waitingForDebugger, debuggerStatus, debugUuid]);
 
   const startPingMechanism = (ws: WebSocket) => {
     // Clear any existing ping interval
@@ -136,11 +245,9 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
 
           pongTimeoutRef.current = setTimeout(() => {
             console.warn("Keep-alive timeout - connection may be dead");
-            if (termRef.current) {
-              termRef.current.writeln(
-                "\r\n\x1b[31m✗ Connection timeout - no keep-alive response received\x1b[0m",
-              );
-            }
+            closeNoticeRef.current =
+              "Connection timeout — no keep-alive response received";
+            setBanner(closeNoticeRef.current);
             ws.close();
           }, 10000);
         } catch (error) {
@@ -169,13 +276,15 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
 
     const term = new Terminal({
       cursorBlink: true,
+      cursorStyle: "block",
       fontSize: 14,
-      fontFamily:
-        '"Fira Code", "JetBrains Mono", "Cascadia Code", "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", monospace',
+      fontFamily: TERMINAL_FONT_FAMILY,
       fontWeight: "400",
-      lineHeight: 1.2,
-      letterSpacing: 0.5,
-      convertEol: true,
+      lineHeight: 1,
+      letterSpacing: 0,
+      convertEol: false,
+      macOptionIsMeta: true,
+      smoothScrollDuration: 0,
       theme: {
         background: "#0d1117",
         foreground: "#f0f6fc",
@@ -199,61 +308,120 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
         brightCyan: "#39c5cf",
         brightWhite: "#b1bac4",
       },
-      scrollback: 1000,
+      scrollback: 10000,
       tabStopWidth: 4,
       allowTransparency: false,
       allowProposedApi: true,
     });
     const fitAddon = new FitAddon();
+    const searchAddon = new SearchAddon();
     term.loadAddon(fitAddon);
+    term.loadAddon(new Unicode11Addon());
+    term.unicode.activeVersion = "11";
+    term.loadAddon(
+      new WebLinksAddon((_event, uri) => {
+        if (!isSafeTerminalLink(uri)) {
+          return;
+        }
+        window.open(uri, "_blank", "noopener,noreferrer");
+      }),
+    );
+    term.loadAddon(searchAddon);
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown") {
+        return true;
+      }
+      const key = event.key.toLowerCase();
+      const copySelection =
+        term.hasSelection() &&
+        !event.altKey &&
+        ((event.metaKey && !event.ctrlKey && !event.shiftKey && key === "c") ||
+          (event.ctrlKey && event.shiftKey && key === "c"));
+      if (copySelection) {
+        const text = term.getSelection();
+        if (text && navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText(text);
+        }
+        term.clearSelection();
+        event.preventDefault();
+        return false;
+      }
+      const modified = event.metaKey || event.ctrlKey;
+      if (modified && !event.altKey && !event.shiftKey && key === "f") {
+        event.preventDefault();
+        onFindRef.current();
+        return false;
+      }
+      return true;
+    });
     fitRef.current = fitAddon;
+    searchRef.current = searchAddon;
+    termRef.current = term;
 
     if (containerRef.current) {
       term.open(containerRef.current);
-      fitAddon.fit();
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => {
+          webgl.dispose();
+        });
+        term.loadAddon(webgl);
+      } catch (error) {
+        console.warn("WebGL terminal renderer unavailable", error);
+      }
+      requestFitRef.current();
       term.focus();
     }
-    termRef.current = term;
+
+    let disposed = false;
+    const fontsReady = document.fonts?.ready;
+    if (fontsReady) {
+      void fontsReady.then(() => {
+        if (!disposed) {
+          requestFitRef.current();
+        }
+      });
+    }
+
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleFit = () => {
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+      resizeTimer = setTimeout(() => {
+        resizeTimer = undefined;
+        requestFitRef.current();
+      }, 50);
+    };
+    const ro = new ResizeObserver(scheduleFit);
+    if (containerRef.current) {
+      ro.observe(containerRef.current);
+    }
+    window.addEventListener("resize", scheduleFit);
 
     return () => {
+      disposed = true;
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+      ro.disconnect();
+      window.removeEventListener("resize", scheduleFit);
+      searchRef.current = null;
+      fitRef.current = null;
       term.dispose();
       termRef.current = null;
     };
   }, []);
 
-  // Show status messages when waiting for debugger
   useEffect(() => {
-    if (waitingForDebugger && termRef.current && !statusMessageShown) {
-      termRef.current.clear();
-      termRef.current.writeln(
-        "\x1b[33m⏳ Waiting for debug container to start...\x1b[0m",
-      );
-      setStatusMessageShown(true);
+    if (!active) {
+      return;
     }
-  }, [waitingForDebugger, statusMessageShown]);
-
-  // Update status message based on debugger status
-  useEffect(() => {
-    if (waitingForDebugger && termRef.current) {
-      switch (debuggerStatus) {
-        case "waiting":
-          termRef.current.write(
-            "\r\x1b[K\x1b[33m⏳ Waiting for debug container...\x1b[0m",
-          );
-          break;
-        case "starting":
-          termRef.current.write(
-            "\r\x1b[K\x1b[36m🔄 Debug container is starting...\x1b[0m",
-          );
-          break;
-        case "error":
-          termRef.current.writeln(
-            "\r\n\x1b[31m✗ Timeout waiting for debug container to start\x1b[0m",
-          );
-          break;
-      }
+    requestFitRef.current();
+    if (!sessionEndedRef.current) {
+      termRef.current?.focus();
     }
-  }, [waitingForDebugger, debuggerStatus]);
+  }, [active]);
 
   // Initialize WebSocket connection (only when debugger is ready or not waiting)
   useEffect(() => {
@@ -286,6 +454,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
     isInitializedRef.current = true;
     sessionEndedRef.current = false;
     userInitiatedCloseRef.current = false;
+    lastPublishedSizeRef.current = null;
 
     sessionRef.current.microserviceUuid = finalMicroserviceUuid;
 
@@ -317,10 +486,10 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
 
     const getSessionEndMessage = (code: number, reason: string) => {
       if (isNormalExecSessionClose(code, userInitiatedCloseRef.current)) {
-        return `\r\n\x1b[32m✓ Exec Session successfully closed\x1b[0m`;
+        return "Exec session closed";
       }
 
-      return `\r\n\x1b[31m✗ Connection closed: ${formatWebSocketClose(code, reason)}\x1b[0m`;
+      return `Connection closed: ${formatWebSocketClose(code, reason)}`;
     };
 
     const markSessionEnded = (message: string) => {
@@ -333,7 +502,19 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       inputListenerRef.current = null;
       term.options.disableStdin = true;
       term.options.cursorBlink = false;
-      term.writeln(message);
+      setBanner(closeNoticeRef.current ?? message);
+    };
+
+    const writePty = (data: Uint8Array) => {
+      const { status, rest } = takeExecStatusNotice(data);
+      if (rest.byteLength > 0) {
+        setBanner(null);
+        term.write(rest);
+        return;
+      }
+      if (status) {
+        setBanner(status);
+      }
     };
 
     const wsUrl = authToken
@@ -345,6 +526,7 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
 
     ws.onopen = () => {
       startPingMechanism(ws);
+      requestAnimationFrame(() => requestFitRef.current());
     };
     ws.onmessage = (evt) => {
       // Handle application messages
@@ -356,11 +538,12 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
           switch (decoded.type) {
             case MessageTypeStdout:
             case MessageTypeStderr:
-              // Write output directly to terminal
-              term.write(new TextDecoder().decode(decoded.data));
+              if (decoded.data?.byteLength) {
+                writePty(decoded.data);
+              }
               break;
 
-            case MessageTypeControl:
+            case MessageTypeControl: {
               // Control messages (like resize, keep-alive responses, etc.)
               const controlData = new TextDecoder().decode(decoded.data);
 
@@ -370,11 +553,9 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
                   clearTimeout(pongTimeoutRef.current);
                   pongTimeoutRef.current = null;
                 }
-              } else {
-                // Other control messages (like resize, etc.)
-                term.writeln(`\r\n [Control] ${controlData}`);
               }
               break;
+            }
 
             case MessageTypeActivation: {
               const activationExecId =
@@ -404,11 +585,12 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
                   // ACTIVATION data is optional JSON; ignore parse failures
                 }
               }
+              requestFitRef.current();
               break;
             }
 
             case MessageTypeClose:
-              markSessionEnded("\r\n Session closed");
+              markSessionEnded("Session closed");
               onCloseRef.current?.();
               break;
 
@@ -417,22 +599,19 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
           }
         } catch (error) {
           console.error("Failed to decode message:", error);
-          term.writeln("\r\n Failed to decode message");
+          setBanner("Failed to decode message");
         }
       } else if (typeof evt.data === "string") {
-        // Handle text messages (fallback)
-        term.write(evt.data);
+        writePty(new TextEncoder().encode(evt.data));
       }
     };
     ws.onclose = (evt) => {
       markSessionEnded(getSessionEndMessage(evt.code, evt.reason));
     };
-    ws.onerror = (evt: any) => {
-      const msg = formatWebSocketErrorString(evt.message || "Connection error");
-      term.writeln(`\r\n\x1b[31m✗ Connection error: ${msg}\x1b[0m`);
+    ws.onerror = () => {
+      setBanner(formatWebSocketErrorString("Connection error"));
     };
 
-    let lineBuffer = "";
     const inputListener = term.onData((data) => {
       if (sessionEndedRef.current || ws.readyState !== WebSocket.OPEN) {
         return;
@@ -446,34 +625,12 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
         timestamp: Date.now(),
       };
       ws.send(msgpack.encode(msg));
-
-      lineBuffer += data;
-      if (isShellExitInput(data, lineBuffer)) {
-        lineBuffer = "";
-        sendExecCloseFrame(ws);
-        return;
-      }
-      if (data.includes("\r") || data.includes("\n")) {
-        lineBuffer = "";
-      }
     });
     inputListenerRef.current = inputListener;
-
-    let resizeTimeout: NodeJS.Timeout;
-    const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => fitRef.current?.fit(), 50);
-    };
-
-    const ro = new ResizeObserver(handleResize);
-    if (containerRef.current) ro.observe(containerRef.current);
-    window.addEventListener("resize", handleResize);
 
     return () => {
       inputListenerRef.current?.dispose();
       inputListenerRef.current = null;
-      ro.disconnect();
-      window.removeEventListener("resize", handleResize);
       stopPingMechanism();
 
       if (!sessionEndedRef.current && ws.readyState === WebSocket.OPEN) {
@@ -483,6 +640,9 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
       // Tab unmount only — let server close first after shell exit (avoid 1005 race).
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
+      }
+      if (wsRef.current === ws) {
+        wsRef.current = null;
       }
       isInitializedRef.current = false;
     };
@@ -497,14 +657,109 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
         width: "100%",
         background: "#0d1117",
         overflow: "hidden",
-        padding: "16px",
+        padding: "8px",
+        position: "relative",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
+      {banner && (
+        <div
+          role="status"
+          style={{
+            flex: "0 0 auto",
+            marginBottom: 6,
+            color: "#f0f6fc",
+            background: "#161b22",
+            border: "1px solid #30363d",
+            borderRadius: 6,
+            fontSize: 12,
+            lineHeight: "18px",
+            fontFamily: TERMINAL_FONT_FAMILY,
+            padding: "4px 8px",
+          }}
+        >
+          {banner}
+        </div>
+      )}
+      {findOpen && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            runFind("next");
+          }}
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 12,
+            zIndex: 2,
+            display: "flex",
+            gap: 4,
+            alignItems: "center",
+            background: "#161b22",
+            border: `1px solid ${findMiss ? "#f85149" : "#30363d"}`,
+            borderRadius: 6,
+            padding: "4px 6px",
+          }}
+        >
+          <input
+            ref={findInputRef}
+            aria-label="Find in terminal"
+            value={findQuery}
+            spellCheck={false}
+            onChange={(event) => {
+              setFindQuery(event.target.value);
+              setFindMiss(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeFind();
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                runFind(event.shiftKey ? "previous" : "next");
+              }
+            }}
+            placeholder="Find"
+            style={{
+              width: 180,
+              background: "#0d1117",
+              color: "#f0f6fc",
+              border: "none",
+              outline: "none",
+              fontSize: 13,
+              fontFamily: TERMINAL_FONT_FAMILY,
+              padding: "2px 6px",
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Previous match"
+            onClick={() => runFind("previous")}
+            style={findButtonStyle}
+          >
+            Prev
+          </button>
+          <button type="submit" aria-label="Next match" style={findButtonStyle}>
+            Next
+          </button>
+          <button
+            type="button"
+            aria-label="Close find"
+            onClick={closeFind}
+            style={findButtonStyle}
+          >
+            Esc
+          </button>
+        </form>
+      )}
       {/* Terminal Content - fills entire container */}
       <div
         ref={containerRef}
         style={{
-          height: "100%",
+          flex: "1 1 auto",
+          minHeight: 0,
           width: "100%",
           background: "#0d1117",
         }}
@@ -518,17 +773,25 @@ const ExecSessionTerminal: React.FC<ExecSessionTerminalProps> = ({
   );
 };
 
+const findButtonStyle: React.CSSProperties = {
+  background: "transparent",
+  color: "#f0f6fc",
+  border: "1px solid #30363d",
+  borderRadius: 4,
+  fontSize: 12,
+  lineHeight: "18px",
+  padding: "0 6px",
+  cursor: "pointer",
+};
+
 export default React.memo(ExecSessionTerminal, (prevProps, nextProps) => {
   // Only re-render if essential props change
-  const shouldReRender =
+  return (
     prevProps.socketUrl === nextProps.socketUrl &&
     prevProps.authToken === nextProps.authToken &&
     prevProps.microserviceUuid === nextProps.microserviceUuid &&
     prevProps.execId === nextProps.execId &&
-    prevProps.className === nextProps.className;
-
-  if (!shouldReRender) {
-  }
-
-  return shouldReRender;
+    prevProps.className === nextProps.className &&
+    prevProps.active === nextProps.active
+  );
 });

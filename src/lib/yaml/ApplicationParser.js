@@ -298,6 +298,11 @@ export const parseMicroservice = async (microservice, options = {}) => {
     template: parseTemplateRef(microservice.template),
     runAsUser: pickContainerOrTop(microservice, container, "runAsUser"),
     runAsGroup: pickContainerOrTop(microservice, container, "runAsGroup"),
+    supplementalGroups: pickContainerOrTop(
+      microservice,
+      container,
+      "supplementalGroups",
+    ),
     readOnlyRootFilesystem: pickContainerOrTop(
       microservice,
       container,

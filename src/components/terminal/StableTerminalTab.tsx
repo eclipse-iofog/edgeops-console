@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import ExecSessionTerminal from "./ExecSessionTerminal";
+import { useTerminalTabActive } from "./TerminalTabVisibility";
 
 interface StableTerminalTabProps {
   sessionId: string;
@@ -26,6 +27,7 @@ const StableTerminalTab: React.FC<StableTerminalTabProps> = ({
 }) => {
   const [isReady, setIsReady] = useState(false);
   const hasInitializedRef = useRef(false);
+  const active = useTerminalTabActive(sessionId);
 
   // Initialize only once when component mounts
   useEffect(() => {
@@ -70,6 +72,7 @@ const StableTerminalTab: React.FC<StableTerminalTabProps> = ({
       nodeUuid={nodeUuid}
       agentName={agentName}
       waitingForDebugger={waitingForDebugger}
+      active={active}
       className="h-full w-full"
       onClose={onClose}
     />

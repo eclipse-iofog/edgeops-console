@@ -94,6 +94,10 @@ export function importantContainerSpecFields() {
       render: (row: any) => formatScalar(row?.runAsGroup),
     },
     {
+      label: "Supplemental Groups",
+      render: (row: any) => formatList(row?.supplementalGroups),
+    },
+    {
       label: "Read Only Root Filesystem",
       render: (row: any) => formatScalar(row?.readOnlyRootFilesystem),
     },

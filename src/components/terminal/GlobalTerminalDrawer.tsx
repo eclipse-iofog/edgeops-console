@@ -7,6 +7,7 @@ import StableYamlTab from "@/components/yaml/StableYamlTab";
 import StableDeployTab from "@/components/yaml/StableDeployTab";
 import LogViewer from "./LogViewer";
 import UnsavedChangesModal from "@/components/ui/UnsavedChangesModal";
+import { TerminalTabVisibilityProvider } from "./TerminalTabVisibility";
 
 type GlobalTerminalDrawerProps = {
   sidebarCollapsed?: boolean;
@@ -421,21 +422,23 @@ const GlobalTerminalDrawer = ({
 
   return (
     <>
-      <ResizableBottomDrawer
-        open={combinedIsDrawerOpen}
-        isEdit={isActiveTabDirty}
-        onClose={handleClose}
-        onSave={handleSave}
-        title={getTitle()}
-        tabs={tabs}
-        activeTabId={combinedActiveSessionId || undefined}
-        onTabChange={handleTabChange}
-        onTabClose={handleTabClose}
-        showUnsavedChangesModal={isActiveTabDirty}
-        leftOffset={sidebarWidth}
-      >
-        {activeSessionContent}
-      </ResizableBottomDrawer>
+      <TerminalTabVisibilityProvider activeTabId={combinedActiveSessionId}>
+        <ResizableBottomDrawer
+          open={combinedIsDrawerOpen}
+          isEdit={isActiveTabDirty}
+          onClose={handleClose}
+          onSave={handleSave}
+          title={getTitle()}
+          tabs={tabs}
+          activeTabId={combinedActiveSessionId || undefined}
+          onTabChange={handleTabChange}
+          onTabClose={handleTabClose}
+          showUnsavedChangesModal={isActiveTabDirty}
+          leftOffset={sidebarWidth}
+        >
+          {activeSessionContent}
+        </ResizableBottomDrawer>
+      </TerminalTabVisibilityProvider>
 
       <UnsavedChangesModal
         open={showDeployConfirmModal}
