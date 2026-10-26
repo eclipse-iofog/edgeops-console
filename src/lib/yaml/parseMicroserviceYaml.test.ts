@@ -550,7 +550,7 @@ spec:
       },
     });
     expect(dumped).toContain(
-      "supplementalGroups:  # host group id from that node, for example getent group render",
+      "supplementalGroups:  # array of integer host group ids from that node [44, 1001], for example 'getent group render'",
     );
     expect(dumped).toContain("runAsGroup: render");
     expect(dumped.indexOf("- 993")).toBeLessThan(dumped.indexOf("- 44"));
@@ -559,7 +559,7 @@ spec:
       microservice: { name: "ms-a", application: "app-a" },
     });
     expect(empty).toContain(
-      "supplementalGroups: []  # host group id from that node, for example getent group render",
+      "supplementalGroups: []  # array of integer host group ids from that node [44, 1001], for example 'getent group render'",
     );
     const parsedEmpty = await parseUnifiedYaml(empty);
     expect(parsedEmpty.errors).toEqual([]);
