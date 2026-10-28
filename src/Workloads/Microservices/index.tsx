@@ -48,6 +48,10 @@ import { importantContainerSpecFields } from "./importantContainerSpecFields";
 import { podIdSlideoverFields } from "./podIdSlideoverField";
 import { microserviceCrashSlideoverFields } from "./microserviceCrashStatusFields";
 import {
+  microserviceImagePullSlideoverFields,
+  microserviceStatusColor,
+} from "./microserviceImagePullStatus";
+import {
   MICROSERVICE_DELETE_MESSAGE,
   VOLUME_MAPPING_DELETE_MESSAGE,
   canDeleteVolumeMapping,
@@ -638,7 +642,7 @@ function MicroservicesList() {
           );
         }
 
-        const bgColor = StatusColor[status as StatusType] ?? "#9CA3AF";
+        const bgColor = microserviceStatusColor(row.status);
         const textColor = getTextColor(bgColor);
         return (
           <span
@@ -878,8 +882,7 @@ function MicroservicesList() {
     {
       label: "Status",
       render: (row: any) => {
-        const bgColor =
-          StatusColor[row.status?.status as StatusType] ?? "#9CA3AF";
+        const bgColor = microserviceStatusColor(row.status);
         const textColor = getTextColor(bgColor);
         return (
           <span
@@ -906,6 +909,7 @@ function MicroservicesList() {
         );
       },
     },
+    ...microserviceImagePullSlideoverFields(selectedMs),
     ...microserviceCrashSlideoverFields(selectedMs),
     {
       label: "Exec Session Ids",
