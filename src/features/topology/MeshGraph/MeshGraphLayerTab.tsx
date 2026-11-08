@@ -18,9 +18,10 @@ import {
   normalizeFogNameTerms,
 } from "@/lib/networkTopology/filters";
 import { resolveGroupMemberIds } from "@/lib/networkTopology/grouping";
-import { enrichNatsConnections } from "@/lib/networkTopology/natsClusterEdges";
+import { NATS_CLUSTER_NODE_ID } from "@/lib/networkTopology/constants";
+import { prepareNatsConnections } from "@/lib/networkTopology/natsClusterEdges";
 import { getHubId } from "@/lib/networkTopology/layout";
-import { tracePathToHub } from "@/lib/networkTopology/pathTrace";
+import { collectDescendants, tracePathToHub } from "@/lib/networkTopology/pathTrace";
 import type {
   MeshGraphFilters,
   TopologyLayer,
@@ -95,7 +96,7 @@ export default function MeshGraphLayerTab({
 
   const layerConnections = useMemo(() => {
     if (layer === "nats") {
-      return enrichNatsConnections(layerData.nodes, layerData.connections);
+      return prepareNatsConnections(layerData.nodes, layerData.connections);
     }
     return layerData.connections;
   }, [layer, layerData.nodes, layerData.connections]);
@@ -175,7 +176,7 @@ export default function MeshGraphLayerTab({
   );
 
   const applyInteractionFocus = useCallback(
-    (nodeId: string | null, connections = layerConnections) => {
+    (nodeId: string | null, connections = groupedView.displayConnections) => {
       if (!nodeId) {
         setHighlightedEdgeIds(new Set());
         setPathTraceEdgeIds(new Set());
@@ -186,16 +187,39 @@ export default function MeshGraphLayerTab({
       const resolvedIds = resolveGroupMemberIds(nodeId, groupedView.groupNodes);
       const primaryId = resolvedIds[0] ?? nodeId;
       const connectionInfo = getNodeConnections(primaryId, connections);
-      const traced = tracePathToHub(primaryId, hubId, connections);
+      let traced = tracePathToHub(primaryId, hubId, connections);
+      if (layer === "nats" && traced.size === 0) {
+        traced = tracePathToHub(primaryId, NATS_CLUSTER_NODE_ID, connections);
+      }
 
-      setHighlightedEdgeIds(
-        new Set(connectionInfo.all.map((connection) => connection.id)),
+      const highlightedIds = new Set(
+        connectionInfo.all.map((connection) => connection.id),
       );
+      const neighborIds = new Set(connectionInfo.neighborIds);
+      if (layer === "nats") {
+        const descendants = collectDescendants(primaryId, connections);
+        for (const nodeId of descendants.nodeIds) {
+          neighborIds.add(nodeId);
+        }
+        for (const edgeId of descendants.edgeIds) {
+          highlightedIds.add(edgeId);
+        }
+      }
+
+      setHighlightedEdgeIds(highlightedIds);
       setPathTraceEdgeIds(traced);
-      setNeighborNodeIds(connectionInfo.neighborIds);
+      setNeighborNodeIds(neighborIds);
     },
-    [groupedView.groupNodes, hubId, layerConnections],
+    [groupedView.displayConnections, groupedView.groupNodes, hubId, layer],
   );
+
+  useEffect(() => {
+    const focusId = selectedNodeId ?? hoveredNodeId;
+    if (!focusId) {
+      return;
+    }
+    applyInteractionFocus(focusId);
+  }, [applyInteractionFocus, hoveredNodeId, selectedNodeId]);
 
   useEffect(() => {
     const matches = findSearchMatches(filters.fogNames);

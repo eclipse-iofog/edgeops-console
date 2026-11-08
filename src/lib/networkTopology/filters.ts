@@ -1,4 +1,5 @@
-import { PINNED_NODE_IDS } from "./constants";
+import { NATS_CLUSTER_NODE_ID, PINNED_NODE_IDS } from "./constants";
+import { collectClusterLeaves, expandNatsChain } from "./pathTrace";
 import type { MeshGraphFilters, TopologyConnection, TopologyLayer, TopologyNodeBase } from "./types";
 
 export function normalizeFogNameTerms(fogNames: string[]): string[] {
@@ -98,7 +99,64 @@ export function applyNodeFilters(
       }
     }
 
+    if (layer === "nats") {
+      const chain = expandNatsChain(matchedIds, connections);
+      const visibleIds = new Set(
+        [...chain].filter((id) => id !== NATS_CLUSTER_NODE_ID),
+      );
+      const matchedClusterMember = nodes.some(
+        (node) =>
+          matchedIds.has(node.id) &&
+          (node.role === "hub" || node.role === "server"),
+      );
+      if (matchedClusterMember) {
+        for (const id of collectClusterLeaves(connections)) {
+          visibleIds.add(id);
+        }
+      }
+      if (chain.has(NATS_CLUSTER_NODE_ID) || matchedClusterMember) {
+        for (const node of nodes) {
+          if (
+            (node.role === "hub" || node.role === "server") &&
+            matchesFiltersExceptFog(node, filters)
+          ) {
+            visibleIds.add(node.id);
+          }
+        }
+      }
+      return nodes.filter(
+        (node) =>
+          visibleIds.has(node.id) && matchesFiltersExceptFog(node, filters),
+      );
+    }
+
     const visibleIds = expandDirectNeighbors(matchedIds, connections);
+    const matchedClusterMember = nodes.some(
+      (node) =>
+        matchedIds.has(node.id) &&
+        (node.role === "hub" || node.role === "server"),
+    );
+    if (matchedClusterMember) {
+      for (const connection of connections) {
+        if (
+          connection.source === NATS_CLUSTER_NODE_ID ||
+          connection.dest === NATS_CLUSTER_NODE_ID
+        ) {
+          visibleIds.add(connection.source);
+          visibleIds.add(connection.dest);
+        }
+      }
+    }
+    if (matchedClusterMember || visibleIds.has(NATS_CLUSTER_NODE_ID)) {
+      for (const node of nodes) {
+        if (
+          (node.role === "hub" || node.role === "server") &&
+          matchesFiltersExceptFog(node, filters)
+        ) {
+          visibleIds.add(node.id);
+        }
+      }
+    }
     return nodes.filter(
       (node) =>
         visibleIds.has(node.id) && matchesFiltersExceptFog(node, filters),

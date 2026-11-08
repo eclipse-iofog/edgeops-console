@@ -13,6 +13,8 @@ export interface TopologyNodeBase {
   displayName: string;
   role: string;
   mode: string;
+  /** JetStream domain. Namespace on a hub or server, agent name on a leaf. */
+  jsDomain?: string | null;
 }
 
 export interface RouterTopologyNode extends TopologyNodeBase {

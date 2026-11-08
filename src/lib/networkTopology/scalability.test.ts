@@ -1,18 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_NATS_HUB_ID, DEFAULT_ROUTER_ID } from "./constants";
+import {
+  DEFAULT_NATS_HUB_ID,
+  DEFAULT_ROUTER_ID,
+  NATS_CLUSTER_NODE_ID,
+} from "./constants";
 import { computeEdgeBundleMeta, computeEdgeBundleOffsets } from "./edgeBundling";
 import { buildGroupedTopologyView } from "./grouping";
 import {
   computeDefaultSwimlaneLayout,
   computeHierarchicalLayout,
   computeLayout,
+  computeNatsVerticalLayout,
   computeSwimlaneMetrics,
   SWIMLANE_COLUMN_X,
   getHubId,
 } from "./layout";
 import { mergeLayoutPositions } from "./layoutPositions";
-import { tracePathToHub } from "./pathTrace";
+import { collectDescendants, tracePathToHub } from "./pathTrace";
 import { getSemanticZoomLevel } from "./semanticZoom";
 import type { TopologyConnection, TopologyNodeBase } from "./types";
 
@@ -115,10 +120,89 @@ describe("networkTopology layout", () => {
   });
 });
 
+describe("nats vertical layout", () => {
+  const natsHub: TopologyNodeBase = {
+    id: DEFAULT_NATS_HUB_ID,
+    iofogUuid: null,
+    fogName: null,
+    host: null,
+    deploymentTarget: "remote",
+    displayName: "Hub",
+    role: "hub",
+    mode: "server",
+  };
+  const server: TopologyNodeBase = {
+    id: "server-1",
+    iofogUuid: "server-1",
+    fogName: "server-1",
+    host: null,
+    deploymentTarget: "edgelet",
+    displayName: "server-1",
+    role: "server",
+    mode: "server",
+  };
+
+  function leafNode(id: string): TopologyNodeBase {
+    return {
+      id,
+      iofogUuid: id,
+      fogName: id,
+      host: null,
+      deploymentTarget: "edgelet",
+      displayName: id,
+      role: "leaf",
+      mode: "leaf",
+    };
+  }
+
+  it("places a cluster leaf below the servers and a child leaf further down", () => {
+    const parent = leafNode("parent");
+    const child = leafNode("child");
+    const positions = computeNatsVerticalLayout(
+      [natsHub, server, parent, child],
+      [
+        { id: 1, source: "parent", dest: NATS_CLUSTER_NODE_ID },
+        { id: 2, source: "child", dest: "parent" },
+      ],
+    );
+
+    expect(positions.get("parent")!.y).toBeGreaterThan(positions.get("server-1")!.y);
+    expect(positions.get("child")!.y).toBeGreaterThan(positions.get("parent")!.y);
+  });
+
+  it("places a detached leaf tree to the right of the cluster", () => {
+    const root = leafNode("detached-root");
+    const positions = computeNatsVerticalLayout(
+      [natsHub, server, root],
+      [],
+    );
+
+    expect(positions.get("detached-root")!.x).toBeGreaterThan(
+      positions.get("server-1")!.x,
+    );
+  });
+});
+
 describe("networkTopology pathTrace", () => {
   it("traces shortest path edges from edge node to hub", () => {
     const traced = tracePathToHub("edge-1", DEFAULT_ROUTER_ID, connections);
     expect(traced).toEqual(new Set([1, 2]));
+  });
+
+  it("collects every descendant under a leaf", () => {
+    const descendants = collectDescendants("edge-1", [
+      { id: 1, source: "edge-2", dest: "edge-1" },
+      { id: 2, source: "edge-3", dest: "edge-2" },
+      { id: 3, source: "lab-raspi", dest: "edge-2" },
+      { id: 4, source: "edge-1", dest: NATS_CLUSTER_NODE_ID },
+    ]);
+
+    expect([...descendants.nodeIds].sort()).toEqual([
+      "edge-2",
+      "edge-3",
+      "lab-raspi",
+    ]);
+    expect(descendants.edgeIds).toEqual(new Set([1, 2, 3]));
   });
 
   it("returns hub id per layer", () => {

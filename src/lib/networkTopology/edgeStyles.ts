@@ -1,3 +1,4 @@
+import { NATS_CLUSTER_NODE_ID } from "./constants";
 import type { TopologyConnection, TopologyLayer, TopologyNodeBase } from "./types";
 
 export type EdgeKind =
@@ -5,10 +6,8 @@ export type EdgeKind =
   | "router-edge-interior"
   | "router-interior-hub"
   | "router-edge-hub"
-  | "nats-server-server"
-  | "nats-leaf-server"
-  | "nats-leaf-hub"
-  | "nats-server-hub"
+  | "nats-cluster"
+  | "nats-leaf"
   | "other";
 
 type EdgePalette = {
@@ -54,21 +53,13 @@ export const EDGE_PALETTE: Record<EdgeKind, EdgePalette> = {
     ...SPOKE_TO_HUB,
     label: "Edge → Hub",
   },
-  "nats-server-server": {
-    ...PEER_MESH,
-    label: "Server ↔ Server",
-  },
-  "nats-leaf-server": {
-    ...SPOKE_TO_MID,
-    label: "Leaf ↔ Server",
-  },
-  "nats-leaf-hub": {
-    ...SPOKE_TO_HUB,
-    label: "Leaf → Hub",
-  },
-  "nats-server-hub": {
+  "nats-cluster": {
     ...MID_TO_HUB,
-    label: "Server ↔ Hub",
+    label: "Cluster",
+  },
+  "nats-leaf": {
+    ...SPOKE_TO_HUB,
+    label: "Leaf",
   },
   other: {
     normal: "#64748b",
@@ -84,12 +75,11 @@ export const ROUTER_EDGE_LEGEND: EdgeKind[] = [
   "router-edge-hub",
 ];
 
-export const NATS_EDGE_LEGEND: EdgeKind[] = [
-  "nats-leaf-server",
-  "nats-server-server",
-  "nats-server-hub",
-  "nats-leaf-hub",
-];
+export const NATS_EDGE_LEGEND: EdgeKind[] = ["nats-cluster", "nats-leaf"];
+
+function isClusterRole(role: string | undefined): boolean {
+  return role === "hub" || role === "server";
+}
 
 function hasRolePair(
   sourceRole: string,
@@ -107,8 +97,18 @@ export function classifyEdge(
   nodeById: Map<string, TopologyNodeBase>,
   layer: TopologyLayer,
 ): EdgeKind {
+  const touchesCluster =
+    connection.source === NATS_CLUSTER_NODE_ID ||
+    connection.dest === NATS_CLUSTER_NODE_ID;
   const source = nodeById.get(connection.source);
   const dest = nodeById.get(connection.dest);
+  if (touchesCluster && layer === "nats") {
+    const other = source ?? dest;
+    if (other && isClusterRole(other.role)) {
+      return "nats-cluster";
+    }
+    return "nats-leaf";
+  }
   if (!source || !dest) {
     return "other";
   }
@@ -129,23 +129,21 @@ export function classifyEdge(
     return "other";
   }
 
-  if (source.role === "server" && dest.role === "server") {
-    return "nats-server-server";
+  const sourceIsCluster =
+    connection.source === NATS_CLUSTER_NODE_ID || isClusterRole(source.role);
+  const destIsCluster =
+    connection.dest === NATS_CLUSTER_NODE_ID || isClusterRole(dest.role);
+  if (sourceIsCluster && destIsCluster) {
+    return "nats-cluster";
   }
-  if (hasRolePair(source.role, dest.role, "leaf", "server")) {
-    return "nats-leaf-server";
-  }
-  if (hasRolePair(source.role, dest.role, "leaf", "hub")) {
-    return "nats-leaf-hub";
-  }
-  if (hasRolePair(source.role, dest.role, "server", "hub")) {
-    return "nats-server-hub";
+  if (source.role === "leaf" || dest.role === "leaf") {
+    return "nats-leaf";
   }
   return "other";
 }
 
-export function isBidirectionalEdge(kind: EdgeKind): boolean {
-  return kind === "nats-server-server" || kind === "nats-server-hub";
+export function isBidirectionalEdge(_kind: EdgeKind): boolean {
+  return false;
 }
 
 export function getEdgeVisualStyle(

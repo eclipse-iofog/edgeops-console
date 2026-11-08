@@ -1,89 +1,111 @@
-import { DEFAULT_NATS_HUB_ID } from "./constants";
+import { NATS_CLUSTER_NODE_ID } from "./constants";
 import type { TopologyConnection, TopologyNodeBase } from "./types";
 
-function connectionPairKey(source: string, dest: string): string {
-  return `${source}|${dest}`;
+export function isNatsClusterMember(node: TopologyNodeBase): boolean {
+  return node.role === "hub" || node.role === "server";
 }
 
-function syntheticConnectionId(source: string, dest: string): number {
-  const key = `synthetic:${source}:${dest}`;
+function unorderedPairKey(left: string, right: string): string {
+  return left < right ? `${left}|${right}` : `${right}|${left}`;
+}
+
+function stableEdgeId(key: string): number {
   let hash = 0;
-  for (let i = 0; i < key.length; i += 1) {
-    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) | 0;
+  }
+  if (hash === 0) {
+    return -1;
   }
   return hash > 0 ? -hash : hash;
 }
 
-function findNatsHubNode(nodes: TopologyNodeBase[]): TopologyNodeBase | undefined {
-  return (
-    nodes.find((node) => node.id === DEFAULT_NATS_HUB_ID) ??
-    nodes.find((node) => node.role === "hub")
-  );
-}
-
-/** Server-mode nodes participate in NATS cluster config — infer missing mesh links. */
-export function buildSyntheticNatsClusterConnections(
+/**
+ * One undirected cluster route per server pair, and one leaf line onto the
+ * cluster box when every upstream of that leaf is a hub or server.
+ * Leaf-to-leaf rows stay, one per parent. The controller stores the mesh,
+ * so missing server routes are not invented.
+ */
+export function prepareNatsConnections(
   nodes: TopologyNodeBase[],
+  apiConnections: TopologyConnection[],
 ): TopologyConnection[] {
-  const hub = findNatsHubNode(nodes);
-  const servers = nodes.filter((node) => node.role === "server");
-  if (!hub || servers.length === 0) {
-    return [];
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const memberIds = new Set(
+    nodes.filter(isNatsClusterMember).map((node) => node.id),
+  );
+
+  const upstreams = new Map<string, string[]>();
+  for (const connection of apiConnections) {
+    const source = nodeById.get(connection.source);
+    if (!source || source.role !== "leaf") {
+      continue;
+    }
+    const list = upstreams.get(source.id) ?? [];
+    list.push(connection.dest);
+    upstreams.set(source.id, list);
   }
 
-  const synthetic: TopologyConnection[] = [];
-
-  for (const server of servers) {
-    synthetic.push({
-      id: syntheticConnectionId(server.id, hub.id),
-      source: server.id,
-      dest: hub.id,
-    });
-  }
-
-  for (let i = 0; i < servers.length; i += 1) {
-    for (let j = i + 1; j < servers.length; j += 1) {
-      const a = servers[i];
-      const b = servers[j];
-      const [source, dest] = a.id.localeCompare(b.id) <= 0 ? [a, b] : [b, a];
-      synthetic.push({
-        id: syntheticConnectionId(source.id, dest.id),
-        source: source.id,
-        dest: dest.id,
-      });
+  const leafToCluster = new Set<string>();
+  for (const [leafId, dests] of upstreams) {
+    if (dests.length > 0 && dests.every((dest) => memberIds.has(dest))) {
+      leafToCluster.add(leafId);
     }
   }
 
-  return synthetic;
-}
+  const prepared: TopologyConnection[] = [];
+  const seen = new Set<string>();
 
-export function mergeTopologyConnections(
-  apiConnections: TopologyConnection[],
-  syntheticConnections: TopologyConnection[],
-): TopologyConnection[] {
-  const seen = new Set(
-    apiConnections.map((connection) =>
-      connectionPairKey(connection.source, connection.dest),
-    ),
-  );
-  const merged = [...apiConnections];
+  for (const connection of apiConnections) {
+    const source = nodeById.get(connection.source);
+    const dest = nodeById.get(connection.dest);
+    if (!source || !dest || source.id === dest.id) {
+      continue;
+    }
 
-  for (const connection of syntheticConnections) {
-    const key = connectionPairKey(connection.source, connection.dest);
+    if (memberIds.has(source.id) && memberIds.has(dest.id)) {
+      const key = unorderedPairKey(source.id, dest.id);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      const [from, to] =
+        source.id < dest.id ? [source.id, dest.id] : [dest.id, source.id];
+      prepared.push({ id: connection.id, source: from, dest: to });
+      continue;
+    }
+
+    const leafDialsCluster =
+      (source.role === "leaf" &&
+        leafToCluster.has(source.id) &&
+        memberIds.has(dest.id)) ||
+      (dest.role === "leaf" &&
+        leafToCluster.has(dest.id) &&
+        memberIds.has(source.id));
+    if (leafDialsCluster) {
+      continue;
+    }
+
+    const key = `${connection.source}|${connection.dest}`;
     if (seen.has(key)) {
       continue;
     }
-    merged.push(connection);
     seen.add(key);
+    prepared.push(connection);
   }
 
-  return merged;
-}
+  for (const leafId of leafToCluster) {
+    const key = `${leafId}|${NATS_CLUSTER_NODE_ID}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    prepared.push({
+      id: stableEdgeId(key),
+      source: leafId,
+      dest: NATS_CLUSTER_NODE_ID,
+    });
+  }
 
-export function enrichNatsConnections(
-  nodes: TopologyNodeBase[],
-  apiConnections: TopologyConnection[],
-): TopologyConnection[] {
-  const synthetic = buildSyntheticNatsClusterConnections(nodes);
-  return mergeTopologyConnections(apiConnections, synthetic);
+  return prepared;
 }

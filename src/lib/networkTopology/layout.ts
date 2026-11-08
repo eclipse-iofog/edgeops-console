@@ -1,4 +1,9 @@
-import { DEFAULT_NATS_HUB_ID, DEFAULT_ROUTER_ID } from "./constants";
+import {
+  DEFAULT_NATS_HUB_ID,
+  DEFAULT_ROUTER_ID,
+  NATS_CLUSTER_NODE_ID,
+} from "./constants";
+import { isNatsClusterMember } from "./natsClusterEdges";
 import type {
   TopologyConnection,
   TopologyLayer,
@@ -466,6 +471,224 @@ export function computeLayout(
     default:
       return computeSwimlaneLayout(nodes, connections, layer);
   }
+}
+
+const NATS_X_STEP = 220;
+const NATS_MEMBER_Y_STEP = 160;
+const NATS_LEAF_Y_STEP = 210;
+const NATS_COLUMNS = 4;
+
+function upstreamIds(
+  nodeId: string,
+  connections: TopologyConnection[],
+): string[] {
+  return connections
+    .filter((connection) => connection.source === nodeId)
+    .map((connection) => connection.dest);
+}
+
+function reachesCluster(
+  nodeId: string,
+  connections: TopologyConnection[],
+  clusterIds: Set<string>,
+  seen: Set<string>,
+): boolean {
+  if (nodeId === NATS_CLUSTER_NODE_ID || clusterIds.has(nodeId)) {
+    return true;
+  }
+  if (seen.has(nodeId)) {
+    return false;
+  }
+  seen.add(nodeId);
+  return upstreamIds(nodeId, connections).some((parentId) =>
+    reachesCluster(parentId, connections, clusterIds, seen),
+  );
+}
+
+function orderByParents(
+  ids: string[],
+  connections: TopologyConnection[],
+  parentX: Map<string, number>,
+): string[] {
+  const score = (id: string) => {
+    const parents = upstreamIds(id, connections)
+      .map((parentId) => parentX.get(parentId))
+      .filter((value): value is number => value !== undefined);
+    if (parents.length === 0) {
+      return 0;
+    }
+    return parents.reduce((total, value) => total + value, 0) / parents.length;
+  };
+
+  return [...ids].sort((left, right) => {
+    const delta = score(left) - score(right);
+    return delta === 0 ? left.localeCompare(right) : delta;
+  });
+}
+
+/**
+ * Message Fabric: cluster members in a block at the top, leaves in rows by
+ * hop depth underneath. A leaf tree that never reaches the cluster sits to
+ * the right of that block.
+ */
+export function computeNatsVerticalLayout(
+  nodes: TopologyNodeBase[],
+  connections: TopologyConnection[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const members = [...nodes.filter(isNatsClusterMember)].sort((left, right) => {
+    if (left.role === "hub") {
+      return -1;
+    }
+    if (right.role === "hub") {
+      return 1;
+    }
+    return left.displayName.localeCompare(right.displayName);
+  });
+  const clusterIds = new Set(members.map((node) => node.id));
+
+  members.forEach((member, index) => {
+    const column = index % NATS_COLUMNS;
+    const row = Math.floor(index / NATS_COLUMNS);
+    const rowCount = Math.min(NATS_COLUMNS, members.length - row * NATS_COLUMNS);
+    const rowWidth = Math.max(rowCount - 1, 0) * NATS_X_STEP;
+    positions.set(member.id, {
+      x: -rowWidth / 2 + column * NATS_X_STEP,
+      y: row * NATS_MEMBER_Y_STEP,
+    });
+  });
+
+  const memberBottom = members.reduce((lowest, member) => {
+    const y = positions.get(member.id)?.y ?? 0;
+    return Math.max(lowest, y);
+  }, 0);
+  const clusterCenterX =
+    members.length === 0
+      ? 0
+      : members.reduce(
+          (total, member) => total + (positions.get(member.id)?.x ?? 0),
+          0,
+        ) / members.length;
+
+  const parentX = new Map<string, number>([[NATS_CLUSTER_NODE_ID, clusterCenterX]]);
+  for (const member of members) {
+    parentX.set(member.id, positions.get(member.id)?.x ?? clusterCenterX);
+  }
+
+  const others = nodes.filter((node) => !clusterIds.has(node.id));
+  const depth = new Map<string, number>();
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (const node of others) {
+      if (depth.has(node.id)) {
+        continue;
+      }
+      const parents = upstreamIds(node.id, connections);
+      if (parents.length === 0 || !parents.every((parentId) => depth.has(parentId) || parentX.has(parentId))) {
+        continue;
+      }
+      const parentDepth = Math.max(
+        ...parents.map((parentId) => depth.get(parentId) ?? 0),
+      );
+      depth.set(node.id, parentDepth + 1);
+      progressed = true;
+    }
+  }
+
+  const attached: TopologyNodeBase[] = [];
+  const detached: TopologyNodeBase[] = [];
+  for (const node of others) {
+    if (reachesCluster(node.id, connections, clusterIds, new Set())) {
+      if (!depth.has(node.id)) {
+        depth.set(node.id, 1);
+      }
+      attached.push(node);
+    } else {
+      detached.push(node);
+    }
+  }
+
+  const detachedIds = new Set(detached.map((node) => node.id));
+  let detachedProgress = true;
+  while (detachedProgress) {
+    detachedProgress = false;
+    for (const node of detached) {
+      if (depth.has(node.id)) {
+        continue;
+      }
+      const parents = upstreamIds(node.id, connections).filter((parentId) =>
+        detachedIds.has(parentId),
+      );
+      if (parents.length === 0) {
+        depth.set(node.id, 1);
+        detachedProgress = true;
+        continue;
+      }
+      if (parents.every((parentId) => depth.has(parentId))) {
+        depth.set(
+          node.id,
+          1 + Math.max(...parents.map((parentId) => depth.get(parentId) ?? 1)),
+        );
+        detachedProgress = true;
+      }
+    }
+  }
+  for (const node of detached) {
+    if (!depth.has(node.id)) {
+      depth.set(node.id, 1);
+    }
+  }
+
+  const placeRow = (
+    rowNodes: TopologyNodeBase[],
+    rowDepth: number,
+    originY: number,
+    shiftX: number,
+  ) => {
+    const ids = orderByParents(
+      rowNodes.map((node) => node.id),
+      connections,
+      parentX,
+    );
+    const width = Math.max(ids.length - 1, 0) * NATS_X_STEP;
+    ids.forEach((id, index) => {
+      const x = shiftX + -width / 2 + index * NATS_X_STEP;
+      const y = originY + (rowDepth - 1) * NATS_LEAF_Y_STEP;
+      positions.set(id, { x, y });
+      parentX.set(id, x);
+    });
+  };
+
+  const byDepth = (list: TopologyNodeBase[]) => {
+    const rows = new Map<number, TopologyNodeBase[]>();
+    for (const node of list) {
+      const rowDepth = depth.get(node.id) ?? 1;
+      const row = rows.get(rowDepth) ?? [];
+      row.push(node);
+      rows.set(rowDepth, row);
+    }
+    return [...rows.entries()].sort((left, right) => left[0] - right[0]);
+  };
+
+  const leafOrigin = memberBottom + NATS_LEAF_Y_STEP;
+  for (const [rowDepth, rowNodes] of byDepth(attached)) {
+    placeRow(rowNodes, rowDepth, leafOrigin, clusterCenterX);
+  }
+
+  let detachedShift = clusterCenterX;
+  if (positions.size > 0) {
+    let maxX = clusterCenterX;
+    for (const position of positions.values()) {
+      maxX = Math.max(maxX, position.x);
+    }
+    detachedShift = maxX + NATS_X_STEP * 2;
+  }
+  for (const [rowDepth, rowNodes] of byDepth(detached)) {
+    placeRow(rowNodes, rowDepth, leafOrigin, detachedShift);
+  }
+
+  return positions;
 }
 
 export function getHubId(layer: TopologyLayer): string {
