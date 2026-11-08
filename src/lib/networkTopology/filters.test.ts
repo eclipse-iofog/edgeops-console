@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_ROUTER_ID } from "@/lib/networkTopology/constants";
+import {
+  DEFAULT_NATS_HUB_ID,
+  DEFAULT_ROUTER_ID,
+  NATS_CLUSTER_NODE_ID,
+} from "@/lib/networkTopology/constants";
 import {
   classifyEdge,
   buildNodeLookup,
@@ -161,6 +165,51 @@ describe("networkTopology filters", () => {
     ]);
   });
 
+  it("keeps a nats leaf chain and the cluster when a fog name matches", () => {
+    const hub: TopologyNodeBase = {
+      ...edge1Node,
+      id: DEFAULT_NATS_HUB_ID,
+      fogName: "lima",
+      displayName: "lima",
+      role: "hub",
+      mode: "server",
+    };
+    const server: TopologyNodeBase = {
+      ...edge1Node,
+      id: "edge-4",
+      fogName: "edge-4",
+      displayName: "edge-4",
+      role: "server",
+      mode: "server",
+    };
+    const leaf = (id: string): TopologyNodeBase => ({
+      ...edge1Node,
+      id,
+      fogName: id,
+      displayName: id,
+      role: "leaf",
+      mode: "leaf",
+    });
+    const filtered = applyNodeFilters(
+      [hub, server, leaf("edge-1"), leaf("edge-2"), leaf("edge-3")],
+      { ...EMPTY_MESH_FILTERS, fogNames: ["edge-1"] },
+      "nats",
+      [
+        { id: 1, source: "edge-1", dest: NATS_CLUSTER_NODE_ID },
+        { id: 2, source: "edge-2", dest: "edge-1" },
+        { id: 3, source: "edge-3", dest: "edge-2" },
+      ],
+    );
+
+    expect(filtered.map((node) => node.id).sort()).toEqual([
+      DEFAULT_NATS_HUB_ID,
+      "edge-1",
+      "edge-2",
+      "edge-3",
+      "edge-4",
+    ]);
+  });
+
   it("collects upstream and downstream connections", () => {
     const connections = getNodeConnections("edge-1", [
       { id: 1, source: "edge-1", dest: DEFAULT_ROUTER_ID },
@@ -209,6 +258,26 @@ describe("networkTopology edgeStyles", () => {
         role: "leaf",
         mode: "leaf",
       },
+      {
+        id: "leaf-2",
+        iofogUuid: "leaf-2",
+        fogName: "leaf-2",
+        host: "10.0.0.7",
+        deploymentTarget: "edgelet",
+        displayName: "leaf-2",
+        role: "leaf",
+        mode: "leaf",
+      },
+      {
+        id: "default-nats-hub",
+        iofogUuid: null,
+        fogName: null,
+        host: "10.0.0.1",
+        deploymentTarget: "remote",
+        displayName: "Default NATS Hub",
+        role: "hub",
+        mode: "server",
+      },
     ]);
 
     expect(
@@ -233,7 +302,7 @@ describe("networkTopology edgeStyles", () => {
         lookup,
         "nats",
       ),
-    ).toBe("nats-server-server");
+    ).toBe("nats-cluster");
 
     expect(
       classifyEdge(
@@ -241,6 +310,22 @@ describe("networkTopology edgeStyles", () => {
         lookup,
         "nats",
       ),
-    ).toBe("nats-leaf-server");
+    ).toBe("nats-leaf");
+
+    expect(
+      classifyEdge(
+        { id: 5, source: "leaf-1", dest: "leaf-2" },
+        lookup,
+        "nats",
+      ),
+    ).toBe("nats-leaf");
+
+    expect(
+      classifyEdge(
+        { id: 6, source: "server-1", dest: "default-nats-hub" },
+        lookup,
+        "nats",
+      ),
+    ).toBe("nats-cluster");
   });
 });

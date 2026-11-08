@@ -83,7 +83,7 @@ function TopologyMeshNodeComponent({ data }: NodeProps) {
         .filter(Boolean)
         .join(" ")}
     >
-      <Handle type="target" position={Position.Top} className="!bg-cyan-400 !w-2 !h-2 !border-0" />
+      <Handle type="target" position={Position.Bottom} className="!bg-cyan-400 !w-2 !h-2 !border-0" />
       <div className="flex items-start gap-2">
         {!isOverview ? (
           <div className="mt-0.5 shrink-0 text-cyan-200">
@@ -114,6 +114,14 @@ function TopologyMeshNodeComponent({ data }: NodeProps) {
               </span>
             </div>
           ) : null}
+          {!isOverview && node.jsDomain && node.role === "leaf" ? (
+            <div
+              className="mt-1 truncate text-[10px] text-emerald-200/80"
+              title={`JetStream Domain: ${node.jsDomain}`}
+            >
+              JS Domain: {node.jsDomain}
+            </div>
+          ) : null}
           {isDetail && node.host ? (
             <div className="mt-1 truncate text-[10px] text-gray-400" title={node.host}>
               {node.host}
@@ -121,7 +129,7 @@ function TopologyMeshNodeComponent({ data }: NodeProps) {
           ) : null}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-cyan-400 !w-2 !h-2 !border-0" />
+      <Handle type="source" position={Position.Top} className="!bg-cyan-400 !w-2 !h-2 !border-0" />
     </div>
   );
 }

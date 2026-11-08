@@ -31,7 +31,7 @@ function TopologySpokeGroupNodeComponent({ data }: NodeProps) {
     >
       <Handle
         type="target"
-        position={Position.Left}
+        position={Position.Bottom}
         className="!bg-emerald-400 !w-2 !h-2 !border-0"
       />
       <div className="flex items-start gap-2">
@@ -59,7 +59,7 @@ function TopologySpokeGroupNodeComponent({ data }: NodeProps) {
       </div>
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Top}
         className="!bg-emerald-400 !w-2 !h-2 !border-0"
       />
     </div>

@@ -16,10 +16,10 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import {
-  getSwimlaneColumnForNode,
   isSpokeGroupNodeId,
   spokeGroupUpstreamOf,
 } from "@/lib/networkTopology/autoGrouping";
+import { NATS_CLUSTER_NODE_ID } from "@/lib/networkTopology/constants";
 import { computeEdgeBundleMeta } from "@/lib/networkTopology/edgeBundling";
 import {
   buildNodeLookup,
@@ -28,12 +28,13 @@ import {
   isBidirectionalEdge,
 } from "@/lib/networkTopology/edgeStyles";
 import {
-  computeDefaultSwimlaneLayout,
-  computeLayout,
+  computeHierarchicalLayout,
+  computeNatsVerticalLayout,
   getHubId,
   getHubTrunkX,
   type SwimlaneCanvas,
 } from "@/lib/networkTopology/layout";
+import { isNatsClusterMember } from "@/lib/networkTopology/natsClusterEdges";
 import {
   getNodesOnPathEdges,
   mergeLayoutPositions,
@@ -46,21 +47,40 @@ import type {
 } from "@/lib/networkTopology/types";
 
 import TopologyBundledEdge from "./TopologyBundledEdge";
+import TopologyClusterEdge from "./TopologyClusterEdge";
+import TopologyClusterNode from "./TopologyClusterNode";
 import TopologySpokeGroupNode from "./TopologySpokeGroupNode";
 import TopologyMeshNode, {
   type TopologyFlowNodeData,
 } from "./TopologyMeshNode";
 
-const LAYOUT_STRATEGY = "swimlane" as const;
+const CLUSTER_NODE_WIDTH = 200;
+const CLUSTER_NODE_HEIGHT = 120;
+const CLUSTER_PAD_X = 36;
+const CLUSTER_PAD_TOP = 36;
+const CLUSTER_PAD_BOTTOM = 28;
 
 const nodeTypes = {
   topologyNode: TopologyMeshNode,
   topologySpokeGroup: TopologySpokeGroupNode,
+  topologyCluster: TopologyClusterNode,
 };
 
 const edgeTypes = {
   topology: TopologyBundledEdge,
+  cluster: TopologyClusterEdge,
 };
+
+function computeLayerLayout(
+  nodes: TopologyNodeBase[],
+  connections: TopologyConnection[],
+  layer: TopologyLayer,
+) {
+  if (layer === "nats") {
+    return computeNatsVerticalLayout(nodes, connections);
+  }
+  return computeHierarchicalLayout(nodes, layer, connections);
+}
 
 export type GraphFocusRequest = {
   nodeIds: string[];
@@ -120,17 +140,6 @@ function resolveNodePositions(input: {
   return positions;
 }
 
-function buildNodeColumnMap(
-  nodes: TopologyNodeBase[],
-  layer: TopologyLayer,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const node of nodes) {
-    map.set(node.id, getSwimlaneColumnForNode(node, layer));
-  }
-  return map;
-}
-
 function buildFlowGraph(input: {
   layer: TopologyLayer;
   nodes: TopologyNodeBase[];
@@ -172,6 +181,14 @@ function buildFlowGraph(input: {
   const pathNodeIds = getNodesOnPathEdges(pathTraceEdgeIds, connections);
   const hasSearch = searchMatchNodeIds.size > 0;
   const hasFocus = Boolean(activeFocusId) || hasSearch;
+  const pathReachesCluster =
+    layer === "nats" &&
+    connections.some(
+      (connection) =>
+        pathTraceEdgeIds.has(connection.id) &&
+        (connection.source === NATS_CLUSTER_NODE_ID ||
+          connection.dest === NATS_CLUSTER_NODE_ID),
+    );
 
   const searchNeighborIds = new Set<string>();
   if (hasSearch) {
@@ -187,12 +204,7 @@ function buildFlowGraph(input: {
     }
   }
 
-  const computedLayout = computeLayout(
-    LAYOUT_STRATEGY,
-    nodes,
-    connections,
-    layer,
-  );
+  const computedLayout = computeLayerLayout(nodes, connections, layer);
   const nodePositions = resolveNodePositions({
     nodes,
     mergedPositions,
@@ -201,14 +213,19 @@ function buildFlowGraph(input: {
   });
   const hubId = getHubId(layer);
   const hubTrunkX = getHubTrunkX(hubId, nodePositions);
-  const nodeColumn = buildNodeColumnMap(nodes, layer);
   const bundleMeta = computeEdgeBundleMeta(
     connections,
     hubId,
     hubTrunkX,
-    nodeColumn,
+    new Map(),
     nodePositions,
   );
+  const classifyLookup = new Map(nodeLookup);
+  for (const node of nodes) {
+    if (!classifyLookup.has(node.id)) {
+      classifyLookup.set(node.id, node);
+    }
+  }
 
   const flowNodes: Node[] = nodes.map((node) => {
     const position = nodePositions.get(node.id) ?? { x: 0, y: 0 };
@@ -218,8 +235,11 @@ function buildFlowGraph(input: {
     const isOnPath = pathNodeIds.has(node.id);
     const searchMatch = searchMatchNodeIds.has(node.id);
     const isSearchNeighbor = searchNeighborIds.has(node.id);
+    const inLitCluster =
+      pathReachesCluster && (node.role === "hub" || node.role === "server");
     const dimmed =
       hasFocus &&
+      !inLitCluster &&
       !isSelected &&
       !isHovered &&
       !isNeighbor &&
@@ -253,6 +273,7 @@ function buildFlowGraph(input: {
       id: node.id,
       type: "topologyNode",
       position,
+      zIndex: 1,
       data: {
         node,
         layer,
@@ -270,6 +291,51 @@ function buildFlowGraph(input: {
     };
   });
 
+  if (layer === "nats") {
+    const members = nodes.filter(isNatsClusterMember);
+    if (members.length > 0) {
+      let minX = Number.POSITIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      let anyVisible = false;
+      for (const member of members) {
+        const position = nodePositions.get(member.id) ?? { x: 0, y: 0 };
+        minX = Math.min(minX, position.x);
+        minY = Math.min(minY, position.y);
+        maxX = Math.max(maxX, position.x + CLUSTER_NODE_WIDTH);
+        maxY = Math.max(maxY, position.y + CLUSTER_NODE_HEIGHT);
+        const memberNode = flowNodes.find((flowNode) => flowNode.id === member.id);
+        const memberData = memberNode?.data as TopologyFlowNodeData | undefined;
+        if (memberData && !memberData.dimmed) {
+          anyVisible = true;
+        }
+      }
+      const jsDomain =
+        members.find((member) => member.jsDomain)?.jsDomain ?? null;
+      flowNodes.unshift({
+        id: NATS_CLUSTER_NODE_ID,
+        type: "topologyCluster",
+        position: {
+          x: minX - CLUSTER_PAD_X,
+          y: minY - CLUSTER_PAD_TOP,
+        },
+        style: {
+          width: maxX - minX + CLUSTER_PAD_X * 2,
+          height: maxY - minY + CLUSTER_PAD_TOP + CLUSTER_PAD_BOTTOM,
+          pointerEvents: "none",
+        },
+        data: {
+          jsDomain,
+          dimmed: !anyVisible && hasFocus,
+        },
+        draggable: false,
+        selectable: false,
+        zIndex: 0,
+      });
+    }
+  }
+
   const nodeIds = new Set(flowNodes.map((node) => node.id));
   const flowEdges: Edge[] = connections
     .filter(
@@ -281,8 +347,10 @@ function buildFlowGraph(input: {
       highlightedEdgeIds.has(connection.id) ||
       pathTraceEdgeIds.has(connection.id);
     const pathTraced = pathTraceEdgeIds.has(connection.id);
-    const dimmed = hasFocus && !highlighted;
-    const edgeKind = classifyEdge(connection, nodeLookup, layer);
+    const edgeKind = classifyEdge(connection, classifyLookup, layer);
+    const clusterRoute = edgeKind === "nats-cluster";
+    const dimmed =
+      hasFocus && !highlighted && !(pathReachesCluster && clusterRoute);
     const visual = getEdgeVisualStyle(edgeKind, highlighted, dimmed);
     const bundle = bundleMeta.get(connection.id) ?? {
       offset: 0,
@@ -301,11 +369,12 @@ function buildFlowGraph(input: {
       id: String(connection.id),
       source: connection.source,
       target: connection.dest,
-      type: "topology",
-      animated: pathTraced,
+      type: clusterRoute ? "cluster" : "topology",
+      animated: pathTraced && !clusterRoute,
+      zIndex: clusterRoute ? 0 : 1,
       data: {
         bundleOffset: bundle.offset,
-        useTrunk: bundle.useTrunk,
+        useTrunk: bundle.useTrunk && !clusterRoute,
         trunkX: bundle.trunkX,
         pathTraced,
         flowActive: pathTraced || (highlighted && hasFocus),
@@ -313,12 +382,14 @@ function buildFlowGraph(input: {
       style: {
         stroke: visual.stroke,
         strokeWidth: pathTraced ? 3 : visual.strokeWidth,
-        opacity: dimmed ? 0.1 : highlighted ? 1 : 0.5,
+        opacity: dimmed ? 0.1 : highlighted ? 1 : clusterRoute ? 0.85 : 0.5,
       },
-      markerEnd: arrowMarker,
-      ...(isBidirectionalEdge(edgeKind)
-        ? { markerStart: arrowMarker }
-        : {}),
+      ...(layer === "nats"
+        ? {}
+        : {
+            markerEnd: arrowMarker,
+            ...(isBidirectionalEdge(edgeKind) ? { markerStart: arrowMarker } : {}),
+          }),
     };
   });
 
@@ -395,7 +466,7 @@ function TopologyGraphInner({
   }, []);
 
   const mergedPositions = useMemo(() => {
-    const computed = computeLayout(LAYOUT_STRATEGY, nodes, connections, layer);
+    const computed = computeLayerLayout(nodes, connections, layer);
     return mergeLayoutPositions(
       nodes.map((node) => node.id),
       savedPositionsRef.current,
@@ -460,7 +531,7 @@ function TopologyGraphInner({
       const currentById = new Map(current.map((node) => [node.id, node]));
       return graph.flowNodes.map((nextNode) => {
         const existing = currentById.get(nextNode.id);
-        if (!existing) {
+        if (!existing || nextNode.id === NATS_CLUSTER_NODE_ID) {
           return nextNode;
         }
         return {
@@ -483,12 +554,7 @@ function TopologyGraphInner({
         return false;
       }
 
-      const computed = computeDefaultSwimlaneLayout(
-        nodes,
-        connections,
-        layer,
-        canvas,
-      );
+      const computed = computeLayerLayout(nodes, connections, layer);
       const positions = Object.fromEntries(computed.entries());
       savedPositionsRef.current = positions;
 
@@ -570,6 +636,9 @@ function TopologyGraphInner({
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, flowNode) => {
+      if (flowNode.type === "topologyCluster") {
+        return;
+      }
       if (flowNode.type === "topologySpokeGroup") {
         const upstreamOf = spokeGroupUpstreamOf(flowNode.id);
         if (upstreamOf) {
@@ -585,7 +654,7 @@ function TopologyGraphInner({
 
   const handleNodeMouseEnter: NodeMouseHandler = useCallback(
     (_event, flowNode) => {
-      if (isDraggingRef.current) {
+      if (isDraggingRef.current || flowNode.type === "topologyCluster") {
         return;
       }
       onNodeHover(flowNode.id);
@@ -614,11 +683,13 @@ function TopologyGraphInner({
         savedPositionsRef.current,
         new Map(),
       );
-
-      if (pendingGraphSyncRef.current) {
-        pendingGraphSyncRef.current = false;
-        applyGraphSync();
-      }
+      flowNodesRef.current = flowNodesRef.current.map((node) =>
+        node.id === flowNode.id
+          ? { ...node, position: flowNode.position }
+          : node,
+      );
+      pendingGraphSyncRef.current = false;
+      applyGraphSync();
     },
     [nodes, applyGraphSync],
   );
@@ -657,6 +728,9 @@ function TopologyGraphInner({
         <MiniMap
           className="!bg-gray-900/80 !border-gray-700"
           nodeColor={(node) => {
+            if (node.type === "topologyCluster") {
+              return "#7c3aed";
+            }
             if (node.type === "topologySpokeGroup") {
               return "#10b981";
             }

@@ -81,6 +81,7 @@ export default function TopologyNodeSlideOver({
             { label: "Inter-router port", value: routerDetail.interRouterPort },
           ]
         : [
+            { label: "JetStream domain", value: routerDetail.jsDomain },
             { label: "Server port", value: routerDetail.serverPort },
             { label: "Leaf port", value: routerDetail.leafPort },
             { label: "Cluster port", value: routerDetail.clusterPort },

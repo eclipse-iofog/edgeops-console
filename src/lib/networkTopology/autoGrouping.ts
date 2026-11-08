@@ -1,10 +1,15 @@
+import { NATS_CLUSTER_NODE_ID } from "./constants";
 import {
   getHubId,
   getMidRole,
   getSpokeRole,
   SWIMLANE_COLUMN_X,
 } from "./layout";
-import { tracePathToHub } from "./pathTrace";
+import {
+  collectClusterLeaves,
+  expandNatsChain,
+  tracePathToHub,
+} from "./pathTrace";
 import type { CollapsedRoleGroup, GroupedTopologyView } from "./grouping";
 import type { TopologyConnection, TopologyLayer, TopologyNodeBase } from "./types";
 
@@ -26,6 +31,10 @@ export function spokeGroupUpstreamOf(nodeId: string): string | null {
   return nodeId.slice("spoke-group-".length);
 }
 
+function isRouterHub(node: TopologyNodeBase, hubId: string): boolean {
+  return node.id === hubId || node.role === "default";
+}
+
 function buildSpokeGroupsByUpstream(
   nodes: TopologyNodeBase[],
   connections: TopologyConnection[],
@@ -33,33 +42,93 @@ function buildSpokeGroupsByUpstream(
 ): Map<string, string[]> {
   const spokeRole = getSpokeRole(layer);
   const midRole = getMidRole(layer);
+  const hubId = getHubId(layer);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const groups = new Map<string, string[]>();
+  const parentSpokes = new Set<string>();
 
   for (const connection of connections) {
     const source = nodeById.get(connection.source);
     const dest = nodeById.get(connection.dest);
-    if (!source || !dest) {
-      continue;
-    }
-
-    if (source.role === spokeRole && dest.role === midRole) {
-      const list = groups.get(dest.id) ?? [];
-      if (!list.includes(source.id)) {
-        list.push(source.id);
-      }
-      groups.set(dest.id, list);
-    }
-    if (dest.role === spokeRole && source.role === midRole) {
-      const list = groups.get(source.id) ?? [];
-      if (!list.includes(dest.id)) {
-        list.push(dest.id);
-      }
-      groups.set(source.id, list);
+    if (source?.role === spokeRole && dest?.role === spokeRole) {
+      parentSpokes.add(dest.id);
     }
   }
 
+  for (const node of nodes) {
+    if (node.role !== spokeRole || parentSpokes.has(node.id)) {
+      continue;
+    }
+
+    const upstreamIds = connections
+      .filter((connection) => connection.source === node.id)
+      .map((connection) => connection.dest);
+    const dialsAnotherSpoke = upstreamIds.some(
+      (upstreamId) => nodeById.get(upstreamId)?.role === spokeRole,
+    );
+    if (dialsAnotherSpoke) {
+      continue;
+    }
+
+    let groupKey: string | null = null;
+    if (layer === "nats") {
+      const dialsCluster =
+        upstreamIds.includes(NATS_CLUSTER_NODE_ID) ||
+        upstreamIds.some((upstreamId) => {
+          const upstream = nodeById.get(upstreamId);
+          return upstream?.role === "hub" || upstream?.role === "server";
+        });
+      if (dialsCluster) {
+        groupKey = NATS_CLUSTER_NODE_ID;
+      }
+    } else {
+      const interiorId = upstreamIds.find(
+        (upstreamId) => nodeById.get(upstreamId)?.role === midRole,
+      );
+      if (interiorId) {
+        groupKey = interiorId;
+      } else if (
+        upstreamIds.some((upstreamId) => {
+          const upstream = nodeById.get(upstreamId);
+          return upstream ? isRouterHub(upstream, hubId) : upstreamId === hubId;
+        })
+      ) {
+        groupKey = hubId;
+      }
+    }
+
+    if (!groupKey) {
+      continue;
+    }
+    const list = groups.get(groupKey) ?? [];
+    list.push(node.id);
+    groups.set(groupKey, list);
+  }
+
   return groups;
+}
+
+function includeClusterMembers(
+  visible: Set<string>,
+  nodes: TopologyNodeBase[],
+  connections: TopologyConnection[],
+) {
+  const touchesCluster = [...visible].some((id) =>
+    connections.some(
+      (connection) =>
+        (connection.source === id && connection.dest === NATS_CLUSTER_NODE_ID) ||
+        (connection.dest === id && connection.source === NATS_CLUSTER_NODE_ID) ||
+        id === NATS_CLUSTER_NODE_ID,
+    ),
+  );
+  if (!touchesCluster) {
+    return;
+  }
+  for (const node of nodes) {
+    if (node.role === "hub" || node.role === "server") {
+      visible.add(node.id);
+    }
+  }
 }
 
 function computeNeighborhood(
@@ -206,7 +275,11 @@ export function buildAutoGroupedView(
     });
   }
 
-  if (options.focusNodeId && options.searchMatchIds.size === 0) {
+  if (
+    layer !== "nats" &&
+    options.focusNodeId &&
+    options.searchMatchIds.size === 0
+  ) {
     const primaryFocus = resolveFocusIds(options.focusNodeId, groupNodes)[0];
     const neighborhood = computeNeighborhood(
       primaryFocus,
@@ -222,22 +295,41 @@ export function buildAutoGroupedView(
         neighborhood.add(group.id);
       }
     }
+    includeClusterMembers(neighborhood, nodes, connections);
 
     displayNodes = displayNodes.filter((node) => neighborhood.has(node.id));
   }
 
   if (options.searchMatchIds.size > 0) {
     const visible = new Set<string>(options.searchMatchIds);
-    for (const matchId of options.searchMatchIds) {
-      for (const connection of connections) {
-        if (connection.source === matchId) {
-          visible.add(connection.dest);
-        }
-        if (connection.dest === matchId) {
-          visible.add(connection.source);
+    if (layer === "nats") {
+      const chain = expandNatsChain(options.searchMatchIds, connections);
+      for (const id of chain) {
+        if (id !== NATS_CLUSTER_NODE_ID) {
+          visible.add(id);
         }
       }
-      visible.add(hubId);
+      const matchedClusterMember = [...options.searchMatchIds].some((id) => {
+        const node = nodes.find((item) => item.id === id);
+        return node?.role === "hub" || node?.role === "server";
+      });
+      if (matchedClusterMember) {
+        for (const id of collectClusterLeaves(connections)) {
+          visible.add(id);
+        }
+      }
+    } else {
+      for (const matchId of options.searchMatchIds) {
+        for (const connection of connections) {
+          if (connection.source === matchId) {
+            visible.add(connection.dest);
+          }
+          if (connection.dest === matchId) {
+            visible.add(connection.source);
+          }
+        }
+        visible.add(hubId);
+      }
     }
     for (const node of displayNodes) {
       if (isSpokeGroupNodeId(node.id)) {
@@ -247,13 +339,16 @@ export function buildAutoGroupedView(
         }
       }
     }
+    includeClusterMembers(visible, nodes, connections);
     displayNodes = displayNodes.filter((node) => visible.has(node.id));
   }
 
   const visibleIds = new Set(displayNodes.map((node) => node.id));
+  const endpointVisible = (id: string) =>
+    visibleIds.has(id) || id === NATS_CLUSTER_NODE_ID;
   const filteredConnections = displayConnections.filter(
     (connection) =>
-      visibleIds.has(connection.source) && visibleIds.has(connection.dest),
+      endpointVisible(connection.source) && endpointVisible(connection.dest),
   );
 
   return {
